@@ -1,9 +1,10 @@
-// Glas-Ansicht (Konzept 7.3): oben schauen, unten bedienen.
+// Glas-Ansicht: Kopfzeile (Gesamtlage) · links Messwerte · Mitte das Glas · rechts Bedingungen · unten Eingriffe, Tempo, Menü.
+// Auf dem Handy liegt das Glas hochkant; Werte, Bedingungen, Eingriffe und Menü öffnen sich als Blätter über der Tab-Leiste.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import * as S from '../game/state.ts';
 import * as sim from '../game/simClient.ts';
-import { chronText, know, liveStatus, setSpeedIndex, maxSpeedIndex, tempWord, o2Word, countWord, showCard, glassYears, fmtMoney, startContest, available } from '../game/career.ts';
+import { chronText, know, liveStatus, setSpeedIndex, maxSpeedIndex, tempWord, o2Word, countWord, showCard, fmtMoney, startContest, available, price } from '../game/career.ts';
 import { CATEGORIES } from '../data/categories.ts';
 import { itemById } from '../data/items.ts';
 import { BIOMES, CAUSES } from '../sim/params.ts';
@@ -11,35 +12,64 @@ import { WIND_NAMES } from '../sim/climate.ts';
 import { MapCanvas, takePhoto } from './MapCanvas.tsx';
 import { Icon, Stars } from './icons.tsx';
 import { Portrait } from './art.tsx';
-import { Sparkline, TpcCurve, Bar, biomeCss, speciesColor, roleText, stageName } from './widgets.tsx';
+import { Sparkline, TpcCurve, biomeCss, speciesColor, roleText, stageName } from './widgets.tsx';
 import { sfx } from '../game/audio.ts';
 import { saveGame } from '../game/save.ts';
 import { TIPS_BY_CAUSE } from '../data/story.ts';
 import { SNAP_FIELDS } from '../sim/sim.ts';
 import type { Inspect } from '../sim/metrics.ts';
+import type { ComponentChildren } from 'preact';
 
-interface ToolDef { id: string; name: string; icon: string; needs?: string; count?: () => number; overlay?: string; brush?: number }
+// ---------------------------------------------------------------- Werkzeuge (Eingriffe an einem Ort)
+interface ToolDef { id: string; name: string; icon: string; needs?: string; count?: () => number; overlay?: string; brush?: number; hint: string }
 const TOOLS: ToolDef[] = [
-  { id: 'look', name: 'Untersuchen', icon: 'lens' },
-  { id: 'sun', name: 'Sonne', icon: 'sun', overlay: 'temp' },
-  { id: 'wind', name: 'Wind', icon: 'wind', needs: 'vent', overlay: 'rain' },
-  { id: 'water', name: 'Wasser', icon: 'drop', needs: 'kanne', overlay: 'height' },
-  { id: 'volcano', name: 'Vulkan', icon: 'volcano', needs: 'vulkan', count: () => S.career.value?.inv.vulkan ?? 0, overlay: 'height' },
-  { id: 'terrain', name: 'Gelände', icon: 'mountain', needs: 'spachtel', count: () => S.career.value?.inv.kruemel ?? 0, overlay: 'height', brush: 3 },
-  { id: 'dose', name: 'Nährsalz', icon: 'salt', needs: 'salz', count: () => S.career.value?.inv.salz ?? 0, overlay: 'nutr', brush: 4 },
-  { id: 'inoc', name: 'Impfen', icon: 'pipette', needs: 'pipette' },
-  { id: 'net', name: 'Kescher', icon: 'net', needs: 'kescher', brush: 3 },
-  { id: 'gear', name: 'Geräte', icon: 'gear' },
+  { id: 'look', name: 'Prüfen', icon: 'lens', hint: 'Feld antippen, um es zu untersuchen' },
+  { id: 'dose', name: 'Salz', icon: 'salt', needs: 'salz', count: () => S.career.value?.inv.salz ?? 0, overlay: 'nutr', brush: 4, hint: 'Tippe, wohin eine Prise Nährsalz soll. Zu viel trübt das Wasser.' },
+  { id: 'volcano', name: 'Vulkan', icon: 'volcano', needs: 'vulkan', count: () => S.career.value?.inv.vulkan ?? 0, overlay: 'height', hint: 'Tippe, wo ein Vulkan entstehen soll: hebt Land, düngt, wärmt.' },
+  { id: 'terrain', name: 'Gelände', icon: 'mountain', needs: 'spachtel', count: () => S.career.value?.inv.kruemel ?? 0, overlay: 'height', brush: 3, hint: 'Über die Welt streichen formt Gebirge oder Becken. Jeder Strich kostet einen Erdkrümel.' },
+  { id: 'net', name: 'Kescher', icon: 'net', needs: 'kescher', brush: 3, hint: 'Tippe auf eine Stelle: Der Kescher entfernt alles Leben im Kreis.' },
+  { id: 'inoc', name: 'Impfen', icon: 'pipette', needs: 'pipette', hint: 'Wähle, was du einsetzen willst, dann tippe auf die Welt.' },
 ];
-const VIEWS: { id: string; name: string; needs?: () => boolean; item?: string }[] = [
-  { id: 'biome', name: 'Biome' },
-  { id: 'temp', name: 'Temperatur', needs: know.temp, item: 'thermo' },
-  { id: 'rain', name: 'Regen', needs: know.rain, item: 'regen' },
-  { id: 'height', name: 'Höhe', needs: know.height, item: 'hoehe' },
-  { id: 'nutr', name: 'Nährstoffe', needs: know.nutr, item: 'boden' },
-  { id: 'species', name: 'Arten', needs: know.species, item: 'lupe' },
-  { id: 'zone', name: 'Wohlfühlzone', needs: know.micro, item: 'mikro' },
+const VIEWS: { id: string; name: string; color: string; needs?: () => boolean; item?: string }[] = [
+  { id: 'biome', name: 'Biome', color: '#6fe07a' },
+  { id: 'temp', name: 'Temperatur', color: '#ff4fd8', needs: know.temp, item: 'thermo' },
+  { id: 'rain', name: 'Regen', color: '#3aa8ff', needs: know.rain, item: 'regen' },
+  { id: 'height', name: 'Höhe', color: '#2ef2ff', needs: know.height, item: 'hoehe' },
+  { id: 'nutr', name: 'Nährstoffe', color: '#c8ff7a', needs: know.nutr, item: 'boden' },
+  { id: 'species', name: 'Leben', color: '#a98bff', needs: know.species, item: 'lupe' },
+  { id: 'zone', name: 'Wohlfühlzone', color: '#5dffa8', needs: know.micro, item: 'mikro' },
 ];
+const SCALES: Record<string, [string, string, string]> = {
+  temp: ['−5 °C', 'linear-gradient(90deg,#14288c,#1e96ff,#28e6dc,#f0dc5a,#ff50c8)', '35 °C'],
+  rain: ['trocken', 'linear-gradient(90deg,#734d29,#4d8099,#3ba8ff)', 'nass'],
+  height: ['tief', 'linear-gradient(90deg,#08102a,#1a3866,#1f7389,#bff2ff)', 'hoch'],
+  nutr: ['karg', 'linear-gradient(90deg,#0a141e,#1e5a46,#5dffa8,#ffb03a)', 'überdüngt'],
+  zone: ['ungeeignet', 'linear-gradient(90deg,#ff4d6d,#1a1f29,#5dffa8)', 'ideal'],
+};
+
+/** Handy-Blatt: '' = zu */
+const sheet = signal<'' | 'werte' | 'bed' | 'eingriff' | 'menu'>('');
+const detailTab = signal<'arten' | 'biome' | 'chronik'>('arten');
+/** Regler unter dem Zeiger → welche Messwerte er bewegt */
+const linking = signal<string[]>([]);
+/** Zell-Messung unter dem Zeiger (Gitter + Bildschirmposition relativ zur Bühne) */
+const hoverCell = signal<{ x: number; y: number; px: number; py: number } | null>(null);
+
+function useMedia(q: string) {
+  const [v, setV] = useState(() => window.matchMedia(q).matches);
+  useEffect(() => { const mm = window.matchMedia(q); const f = () => setV(mm.matches); mm.addEventListener('change', f); return () => mm.removeEventListener('change', f); }, [q]);
+  return v;
+}
+function useSize(ref: { current: HTMLElement | null }) {
+  const [sz, setSz] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const ro = new ResizeObserver(() => setSz({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el); setSz({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+  return sz;
+}
 
 let prevSpeed = -1;
 export const glyphOf = (t: { role: number; land: number; z: number }) => t.role === 0 ? (t.land ? (t.z > 0.45 ? 'pine' : 'leaf') : 'dots') : t.role === 1 ? (t.land ? 'paw' : 'bug') : 'fish';
@@ -58,6 +88,7 @@ function selectTool(id: string) {
   if (!c.cards.includes('tools')) showCard('tools');
 }
 function restoreSpeed() { if (prevSpeed >= 0 && !S.paused.value) setSpeedIndex(prevSpeed); prevSpeed = -1; }
+function leaveGlass(to: S.Screen) { setSpeedIndex(-1); saveGame(); S.screen.value = to; }
 
 function useInspect(id: number) {
   const [d, setD] = useState<Inspect | null>(null);
@@ -65,92 +96,186 @@ function useInspect(id: number) {
   useEffect(() => { let alive = true; if (id >= 0) sim.inspect(id).then(r => { if (alive) setD(r); }); else setD(null); return () => { alive = false; }; }, [id, dayV]);
   return d;
 }
+function pickSpecies(id: number) { S.selectedSpecies.value = id; sim.selectSpecies(id); S.cellInfo.value = null; if (S.tool.value !== 'look') S.tool.value = 'look'; }
 
-// ---------------------------------------------------------------- Top-Leiste
-function TopBar() {
+// ---------------------------------------------------------------- Kopfzeile
+/** Welche Messwerte zählen für die Kategorie des laufenden Wettbewerbs */
+const CAT_METRIC: Record<string, string> = {
+  green: 'bio', colorful: 'species', foodweb: 'species', web: 'species', exotic: 'species', balance: 'species', giants: 'species',
+  bigstep: 'stage', mind: 'stage', development: 'stage', hot: 'temp', icewold: 'temp', sturdy: 'temp',
+  landscapes: 'land', rainforest: 'land', continents: 'land', deepsea: 'land',
+};
+function countingMetrics() { const st = liveStatus(); return new Set(st ? st.ct.cats.map(x => CAT_METRIC[x.id]).filter(Boolean) : []); }
+
+function ContestBox() {
   const c = S.career.value!;
   const st = liveStatus();
-  const sp = S.speed.value, pz = S.paused.value, maxI = maxSpeedIndex();
-  return (
-    <div class="topbar">
-      <span class="brand">Weltenglas</span>
-      <button class="iconbtn" title="Zimmer" onClick={() => { setSpeedIndex(-1); saveGame(); S.screen.value = 'hub'; }}><Icon name="home" /></button>
-      <span class="pill daypill" title={glassYears(S.day.value)}>T+<b>{String(Math.floor(S.day.value)).padStart(3, '0')}</b><span class="muted small gy">· {glassYears(S.day.value)}</span></span>
-      <div class="seg">
-        <button class={pz ? 'on' : ''} onClick={() => setSpeedIndex(-1)} aria-label="Pause" disabled={S.locked.value}><Icon name="pause" size={16} /></button>
-        {S.SPEEDS.slice(0, maxI + 1).map((s, i) => <button class={!pz && sp === i ? 'on' : ''} disabled={S.locked.value} onClick={() => { setSpeedIndex(i); prevSpeed = -1; }}>{s.label}</button>)}
+  if (!st && (c.flags.tutorial === 1 || c.flags.tutorial === 2)) {
+    return <div class="gv-contest none soon"><div class="what"><b>Schulfest</b><span>Beginnt, sobald das erste Leben wächst.</span></div></div>;
+  }
+  if (!st) {
+    const av = available(c).filter(x => !c.done.includes(x.id) || x.finale);
+    return (
+      <div class="gv-contest none">
+        <div class="what"><b>Kein Wettbewerb</b><span>Freies Spiel. Im Kalender wartet der nächste.</span></div>
+        <div class="row">
+          {av[0] && <button class="btn small primary" onClick={() => { if (startContest(av[0].id)) S.toast(`${av[0].name} beginnt!`, 'info'); else leaveGlass('calendar'); }}>{av[0].name} starten</button>}
+          <button class="btn small" onClick={() => leaveGlass('calendar')}><Icon name="calendar" size={16} />Kalender</button>
+        </div>
       </div>
-      <span class="spacer" />
-      {st ? (
-        <button class="pill dark contest-pill" onClick={() => S.modal.value = { kind: 'contest' }}>
-          <Icon name="trophy" size={18} />{st.ct.name}<span class="muted ctx" style="opacity:.75;font-weight:500">· {st.ct.cats.map(x => CATEGORIES[x.id].short).join(' + ')} · noch {Math.ceil(st.daysLeft)} Tage</span>
-          <span class="spacer" style="display:block" />{know.rank() ? <span style="margin-left:4px">Platz {st.place}</span> : <Stars n={st.stars} unknown={st.unknown} />}<span class="tiny mob-only" style="opacity:.7;margin-left:6px">{Math.ceil(st.daysLeft)} T.</span>
-        </button>
-      ) : (
-        <button class="pill choose" onClick={() => { setSpeedIndex(-1); S.screen.value = 'calendar'; }}><Icon name="calendar" size={18} />Wettbewerb wählen</button>
-      )}
-      <span class="pill money"><Icon name="pig" size={18} />{fmtMoney(c.money)}</span>
-      <button class="iconbtn" title="Foto" onClick={() => takePhoto(`Weltenglas · ${c.name}s Welt · Tag ${Math.floor(S.day.value)}`)}><Icon name="camera" /></button>
-      <button class="iconbtn" title="Forschungsheft" onClick={() => { S.screen.value = 'notebook'; }}><Icon name="book" /></button>
-      <button class="iconbtn" title="Hilfe" onClick={() => S.modal.value = { kind: 'help' }}><Icon name="info" /></button>
-      <button class="iconbtn" title="Einstellungen" onClick={() => S.modal.value = { kind: 'settings' }}><Icon name="gear" /></button>
-    </div>
+    );
+  }
+  const days = Math.ceil(st.daysLeft);
+  const rank = know.rank();
+  const leader = [...st.field].sort((a, b) => b.points - a.points)[0];
+  return (
+    <button class="gv-contest" onClick={() => S.modal.value = { kind: 'contest' }} title="Wertung im Detail">
+      <div class="when"><b class="mono">{days}</b><span>{days === 1 ? 'Tag bis Abgabe' : 'Tage bis Abgabe'}</span></div>
+      <div class="what"><b>{st.ct.name} · {st.ct.cats.map(x => CATEGORIES[x.id].name).join(' + ')}</b>
+        <span>Jetzt: {st.cats.map(x => { const cat = CATEGORIES[x.id]; return cat.needs && !S.has(cat.needs) ? `${cat.short} · ${itemById(cat.needs).name} fehlt` : cat.fmt(x.x); }).join(' · ')}</span></div>
+      <div class="score">
+        {rank && leader ? <div class="vs">
+          <div class="vrow"><span>{leader.name.split(' ')[0]}</span><i style={`--w:${Math.min(100, leader.points)}%;--c:var(--muted)`} /><b>{Math.round(leader.points)}</b></div>
+          <div class="vrow me"><span>Du</span><i style={`--w:${Math.min(100, st.points)}%;--c:var(--violet)`} /><b>{st.unknown ? '?' : Math.round(st.points)}</b></div>
+        </div> : <div class="vs"><div class="vrow me"><span>Punkte</span><i style={`--w:${st.unknown ? 0 : Math.min(100, st.points)}%;--c:var(--violet)`} /><b>{st.unknown ? '?' : Math.round(st.points)}</b></div></div>}
+        <div class="place">{rank ? <><b class="mono">{st.place}.</b><span>Prognose</span></> : <><Stars n={st.stars} unknown={st.unknown} size={15} /><span>Jury jetzt</span></>}</div>
+      </div>
+    </button>
   );
 }
 
-// ---------------------------------------------------------------- Linke Spalte
-function BiomeCard() {
-  const m = S.metrics.value; if (!m) return null;
-  const rows = m.biomes.map((v, i) => ({ i, v })).filter(r => r.v > 0).sort((a, b) => b.v - a.v).slice(0, 8);
-  const max = Math.max(...rows.map(r => r.v), 1);
+function TopBar() {
+  const c = S.career.value!;
+  const pz = S.paused.value, sp = S.speed.value, maxI = maxSpeedIndex();
   return (
-    <div class="card">
-      <div class="label" style="margin-bottom:8px">Biome</div>
-      {rows.map(r => <div class="biome-row"><span class="dot" style={`background:${biomeCss(r.i)}`} /><span>{BIOMES[r.i].name}</span><Bar v={r.v / max} color={biomeCss(r.i)} /></div>)}
-    </div>
+    <header class="gv-top">
+      <div class="gv-brand">
+        <button class="brand-mark" title="Ins Zimmer" aria-label="Ins Zimmer" onClick={() => leaveGlass('hub')} />
+        <div class="brand-name"><b>Weltenglas</b><small>Akt {['', 'I', 'II', 'III'][c.act]} · {c.name}s Welt</small></div>
+        <div class="day"><small>Glastag</small><b class="mono">{Math.floor(S.day.value)}</b></div>
+      </div>
+      <ContestBox />
+      <div class="gv-money"><span>Kasse</span><b class="mono">{fmtMoney(c.money)}</b></div>
+      <button class="pspeed" aria-label="Tempo wechseln" disabled={S.locked.value} onClick={() => {
+        const L = [-1, ...Array.from({ length: maxI + 1 }, (_, i) => i)]; const curI = pz ? -1 : sp;
+        setSpeedIndex(L[(L.indexOf(curI) + 1) % L.length]); prevSpeed = -1;
+      }}>{pz ? <Icon name="pause" size={14} /> : S.SPEEDS[sp].label}</button>
+    </header>
   );
 }
-function SpeciesCard() {
+
+// ---------------------------------------------------------------- Links: Zustand der Welt
+function bioWord(green: number) { return green < 0.15 ? 'kaum etwas' : green < 0.5 ? 'wenig' : green < 1 ? 'einiges' : green < 1.6 ? 'viel' : 'üppig'; }
+function trendOf(data: number[]) { if (data.length < 6) return 0; const a = data[data.length - 6], b = data[data.length - 1]; return b - a; }
+function WorldState() {
+  const m = S.metrics.value; if (!m) return null;
+  const h = S.hist.value.slice(-160);
+  const logger = know.data();
+  const counts = countingMetrics();
+  const link = linking.value;
+  const rows: { id: string; name: string; val: string; unit: string; color: string; data: number[]; fmtD: (d: number) => string; known: boolean; off?: string }[] = [
+    { id: 'species', name: know.species() ? 'Arten' : 'Leben', val: know.species() ? String(m.species) : countWord(m.species), unit: '', color: '#a98bff', data: h.map(d => d.species), fmtD: d => (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(Math.round(d)), known: know.species() },
+    { id: 'bio', name: 'Biomasse', val: logger ? Math.round(h[h.length - 1]?.bio ?? m.total).toLocaleString('de-DE') : bioWord(m.green), unit: '', color: '#5dffa8', data: h.map(d => d.bio), fmtD: d => { const b = h[h.length - 6]?.bio || 1; return (d >= 0 ? '+' : '−') + Math.abs(Math.round(d / b * 100)) + ' %'; }, known: logger },
+    { id: 'o2', name: 'Sauerstoff', val: know.o2() ? m.o2.toFixed(1).replace('.', ',') : o2Word(m.o2), unit: know.o2() ? '% O₂' : '', color: '#2ef2ff', data: h.map(d => d.o2), fmtD: d => (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(1).replace('.', ','), known: know.o2(), off: know.o2() ? undefined : itemById('gas').name },
+    { id: 'temp', name: 'Temperatur Ø', val: know.temp() ? m.avgT.toFixed(1).replace('.', ',') : tempWord(m.avgT), unit: know.temp() ? '°C' : '', color: '#ff4fd8', data: h.map(d => d.T), fmtD: d => (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(1).replace('.', ','), known: know.temp(), off: know.temp() ? undefined : itemById('thermo').name },
+  ];
+  const k = Math.max(1, m.kMax);
+  return (
+    <section class="gpanel">
+      <div class="ph"><span class="cap">Zustand der Welt</span><small>{logger ? 'letzte 40 Tage' : ''}</small></div>
+      <div class={`metrics ${link.length ? 'linking' : ''}`}>
+        {rows.map(r => {
+          const d = trendOf(r.data);
+          return (
+            <div class={`metric ${link.includes(r.id) ? 'hit' : ''}`} style={`--c:${r.color}`}>
+              <span class="nm">{r.name}{counts.has(r.id) && <span class="badge">zählt</span>}</span>
+              <div class="val"><span class={r.known ? 'mono' : 'word'}>{r.val}</span>{r.unit && <small>{r.unit}</small>}
+                {logger && r.known && r.data.length > 5 && <em class={d > 0 ? 'up' : d < 0 ? 'down' : 'flat'}>{r.fmtD(d)}</em>}</div>
+              {logger && r.known ? <Spark data={r.data} color={r.color} /> : <span class="off">{r.off ? `genau: ${r.off}` : ''}</span>}
+            </div>
+          );
+        })}
+      </div>
+      {!logger && <p class="hint">Verlaufskurven zeigt der Datenlogger (Zoohandlung).</p>}
+      <div>
+        <div class="kv"><span>Stufe des Lebens{counts.has('stage') && <span class="badge">zählt</span>}</span><b class="stage-name">{stageName(k)} · {k} von 6</b></div>
+        <div class="steps">{[1, 2, 3, 4, 5, 6].map(i => <i class={i <= k ? 'on' : i === k + 1 ? 'next' : ''} />)}</div>
+      </div>
+    </section>
+  );
+}
+function Spark({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return <svg class="spark" />;
+  const w = 200, h = 20, mx = Math.max(...data), mn = Math.min(...data), sp = mx - mn || 1;
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - 3 - ((v - mn) / sp) * (h - 6)}`).join(' ');
+  return <svg class="spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"><polyline points={`0,${h} ${pts} ${w},${h}`} fill={color} opacity=".1" /><polyline points={pts} fill="none" stroke={color} stroke-width="1.4" vector-effect="non-scaling-stroke" /></svg>;
+}
+
+function SpeciesList() {
   const list = S.speciesList.value.filter(s => s.est);
   const lupe = know.species(), logger = know.data();
-  const sel = S.selectedSpecies.value;
   const reg = S.registry.value;
   return (
-    <div class="card">
-      <div class="label" style="margin-bottom:6px">{lupe ? `Arten · ${list.length}` : `Leben · ${countWord(list.length)}`}</div>
-      {list.slice(0, lupe ? 14 : 6).map((s, i) => {
+    <div class="tabbody">
+      {list.slice(0, lupe ? 30 : 6).map((s, i) => {
         const r = reg.find(x => x.id === s.id);
+        const col = speciesColor(s.typus);
         return (
-          <button class={`sp-row ${sel === s.id ? 'sel' : ''}`} onClick={() => { S.selectedSpecies.value = s.id; sim.selectSpecies(s.id); S.cellInfo.value = null; if (S.tool.value !== 'look') S.tool.value = 'look'; }}>
-            <span class="glyph" style={`color:${speciesColor(s.typus)}`}><Icon name={glyphOf(s.typus)} size={16} stroke={2.2} /></span>
-            <span class="grow"><div class="nm">{lupe ? s.name : (r?.name && S.career.value!.named.includes(s.id) ? r.name : `Sorte ${i + 1}`)}</div>
-              <div class="sub">{lupe ? `${roleText(s.typus)}${know.temp() ? ` · ${s.typus.topt.toFixed(0)} °C` : ''}` : s.typus.role === 0 ? 'grünlich' : 'bewegt sich'}</div></span>
-            {logger && r?.hist?.length ? <Sparkline data={r.hist} color={speciesColor(s.typus)} w={60} h={22} /> : <Bar v={Math.sqrt(s.share)} color={speciesColor(s.typus)} />}
-            <Icon name={s.trend > 1.08 ? 'upr' : s.trend < 0.92 ? 'dnr' : 'right'} size={16} class="faint" />
+          <button class="sp" onClick={() => { pickSpecies(s.id); }} style={`--c:${col}`}>
+            <span class="glyph"><Icon name={glyphOf(s.typus)} size={14} stroke={2.2} /></span>
+            <span class="grow"><b>{lupe ? s.name : (r?.name && S.career.value!.named.includes(s.id) ? r.name : `Sorte ${i + 1}`)}</b>
+              <small>{lupe ? `${roleText(s.typus)}${know.temp() ? ` · ${s.typus.topt.toFixed(0)} °C` : ''}` : s.typus.role === 0 ? 'grünlich' : 'bewegt sich'}</small></span>
+            {logger && r?.hist?.length ? <Sparkline data={r.hist} color={col} w={46} h={16} /> : <span />}
+            <Icon name={s.trend > 1.08 ? 'upr' : s.trend < 0.92 ? 'dnr' : 'right'} size={14} class="faint" />
           </button>
         );
       })}
-      {!lupe && <p class="tiny faint" style="margin-top:6px">Mit einer Lupe erkennst du die Arten genauer.</p>}
+      {!list.length && <p class="hint">Noch kein Leben, das man zählen könnte.</p>}
+      {!lupe && list.length > 0 && <p class="hint">Mit einer Lupe erkennst du die Arten genauer.</p>}
     </div>
   );
 }
-function AirCard() {
+function BiomeList() {
   const m = S.metrics.value; if (!m) return null;
-  const meta = S.meta.value;
+  const tot = m.biomes.reduce((a, b) => a + b, 0) || 1;
+  const rows = m.biomes.map((v, i) => ({ i, f: v / tot })).filter(r => r.f > 0.004).sort((a, b) => b.f - a.f);
   return (
-    <div class="card">
-      <div class="label" style="margin-bottom:8px">Glas</div>
-      <div class="stat-grid">
-        <div class="stat"><b>{know.o2() ? `${m.o2.toFixed(1)} %` : o2Word(m.o2)}</b><span>Sauerstoff der Luft</span></div>
-        <div class="stat"><b>{know.temp() ? `${m.avgT.toFixed(1)} °C` : tempWord(m.avgT)}</b><span>Temperatur Ø</span></div>
-        <div class="stat"><b>{stageName(Math.max(1, m.kMax))}</b><span>höchste Stufe</span></div>
-        <div class="stat"><b>{meta ? `${Math.round(meta.ctl.lamp * 100)} %` : '–'}</b><span>Sonne</span></div>
-      </div>
+    <div class="tabbody">
+      {rows.map(r => <div class="bio" style={`--c:${biomeCss(r.i)};--w:${Math.min(100, r.f * 160)}%`}><span class="dot" /><span class="grow">{BIOMES[r.i].name}</span><i /><b class="mono">{know.height() ? `${Math.round(r.f * 100)} %` : ''}</b></div>)}
+      <p class="hint">{know.height() ? `Land ${Math.round(m.landFrac * 100)} % · Meer ${Math.round((1 - m.landFrac) * 100)} %` : 'Genaue Anteile zeigt die Höhenkarte.'}</p>
+    </div>
+  );
+}
+function ChronList() {
+  const ch = S.chronicle.value.slice(-40).reverse();
+  return (
+    <div class="tabbody">
+      {ch.map(e => <button class="ev" onClick={() => S.showAt(e.x, e.y)}><span class="mono">Tag {Math.floor(e.tick / 4)}</span><span class={e.big ? 'big' : ''}>{chronText(e.text, e.kind)}</span></button>)}
+      {!ch.length && <p class="hint">Das Glas ist still.</p>}
     </div>
   );
 }
 
-// ---------------------------------------------------------------- Rechte Spalte
+function Detail() {
+  const sel = S.selectedSpecies.value, ci = S.cellInfo.value;
+  const tab = detailTab.value;
+  const counts = countingMetrics();
+  if (sel >= 0) return <section class="gpanel detail sel"><SpeciesDetail id={sel} /></section>;
+  if (ci) return <section class="gpanel detail sel"><CellDetail /></section>;
+  const n = S.speciesList.value.filter(s => s.est).length;
+  return (
+    <section class="gpanel detail">
+      <div class="tabs">
+        <button class={tab === 'arten' ? 'on' : ''} onClick={() => detailTab.value = 'arten'}>{know.species() ? `Arten · ${n}` : 'Leben'}</button>
+        <button class={tab === 'biome' ? 'on' : ''} onClick={() => detailTab.value = 'biome'}>Landschaften{counts.has('land') && <i class="tdot" />}</button>
+        <button class={tab === 'chronik' ? 'on' : ''} onClick={() => detailTab.value = 'chronik'}>Chronik</button>
+      </div>
+      {tab === 'arten' ? <SpeciesList /> : tab === 'biome' ? <BiomeList /> : <ChronList />}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------- Detail: Art und Feld
 function reasons(d: Inspect, micro: boolean, kn: { temp: boolean; nutr: boolean; rain: boolean }) {
   const out: { dir: 'up' | 'down' | 'right' | 'unk'; text: string }[] = [];
   const t = d.traits;
@@ -182,238 +307,369 @@ function SpeciesDetail({ id }: { id: number }) {
   const lupe = know.species(), micro = know.micro();
   const [editing, setEditing] = useState(false);
   const [nm, setNm] = useState('');
-  if (!d) return <div class="card"><p class="muted">Lade …</p></div>;
+  const close = () => { S.selectedSpecies.value = -1; sim.selectSpecies(-1); if (S.overlay.value === 'zone') S.overlay.value = 'biome'; };
+  if (!d) return <p class="hint">Lade …</p>;
   const t = d.traits;
   const canSample = c.inv.pipette && c.inv.kryo && c.freezer.length < 3 && d.alive;
   return (
-    <div class="card">
-      <div class="spcard-head"><Portrait t={t} seed={d.id} unknown={!lupe && !c.named.includes(d.id)} /></div>
-      <div class="row">
-        {editing ? <input value={nm} maxLength={24} onInput={e => setNm((e.target as HTMLInputElement).value)} onKeyDown={e => { if (e.key === 'Enter') { sim.sendCmd({ type: 'rename', species: id, name: nm }, true); setEditing(false); } }} style="flex:1;height:38px;border-radius:10px;border:1px solid var(--line);padding:0 10px;background:var(--card2)" />
-          : <h3 class="grow" style="font-size:22px">{lupe || c.named.includes(d.id) ? d.name : 'Unbekannte Sorte'}</h3>}
-        {lupe && (editing ? <button class="btn small primary" onClick={() => { sim.sendCmd({ type: 'rename', species: id, name: nm }, true); setEditing(false); }}>OK</button>
-          : <button class="iconbtn" title="Umbenennen" onClick={() => { setNm(d.name); setEditing(true); }}><Icon name="sparkle" size={18} /></button>)}
-        <button class="iconbtn" onClick={() => { S.selectedSpecies.value = -1; sim.selectSpecies(-1); }} aria-label="Schließen"><Icon name="x" size={18} /></button>
+    <div class="dbody">
+      <div class="dhead">
+        <button class="back" onClick={close} aria-label="Zurück zur Liste"><Icon name="chevL" size={16} />Liste</button>
+        <span class="grow" />
+        {lupe && !editing && <button class="iconbtn sm" title="Umbenennen" onClick={() => { setNm(d.name); setEditing(true); }}><Icon name="sparkle" size={16} /></button>}
       </div>
+      <div class="spcard-head"><Portrait t={t} seed={d.id} unknown={!lupe && !c.named.includes(d.id)} /></div>
+      {editing ? <div class="row"><input class="field" value={nm} maxLength={24} onInput={e => setNm((e.target as HTMLInputElement).value)} onKeyDown={e => { if (e.key === 'Enter') { sim.sendCmd({ type: 'rename', species: id, name: nm }, true); setEditing(false); } }} />
+        <button class="btn small primary" onClick={() => { sim.sendCmd({ type: 'rename', species: id, name: nm }, true); setEditing(false); }}>OK</button></div>
+        : <h3 class="dtitle" style={`color:${speciesColor(t)}`}>{lupe || c.named.includes(d.id) ? d.name : 'Unbekannte Sorte'}</h3>}
       {lupe ? <p class="small muted"><i>{d.latin}</i> · {roleText(t)} · {stageName(t.k)} · seit Tag {Math.floor(d.born / 4)}{d.reason && d.reason !== 'Ursprung' ? ` · entstand durch ${d.reason}` : ''}</p>
         : <p class="small muted">Für Name, Rolle und Herkunft brauchst du eine Lupe.</p>}
-      {!d.alive && <p class="small" style="color:var(--bad);margin-top:6px">Ausgestorben (Tag {Math.floor(d.died / 4)}) · {d.cause}</p>}
-      <div class="label" style="margin:14px 0 4px">Warum wächst sie hier?</div>
+      {!d.alive && <p class="small" style="color:var(--alarm)">Ausgestorben (Tag {Math.floor(d.died / 4)}) · {d.cause}</p>}
+      <div class="cap sub">Warum wächst sie hier?</div>
       {reasons(d, micro, { temp: know.temp(), nutr: know.nutr(), rain: know.rain() }).map(r => (
-        <div class={`reason ${r.dir}`}><Icon name={r.dir === 'up' ? 'up' : r.dir === 'down' ? 'down' : r.dir === 'right' ? 'right' : 'info'} size={16} /><span>{r.text}</span></div>
+        <div class={`reason ${r.dir}`}><Icon name={r.dir === 'up' ? 'up' : r.dir === 'down' ? 'down' : r.dir === 'right' ? 'right' : 'info'} size={14} /><span>{r.text}</span></div>
       ))}
-      {micro && <><div class="label" style="margin:14px 0 4px">Wohlfühlklima</div><TpcCurve t={t} T={d.T} color={speciesColor(t)} /></>}
-      <div class="stat-grid" style="margin-top:12px">
-        <div class="stat"><b>{d.total.toFixed(0)}</b><span>Bestand (Einheiten)</span></div>
-        <div class="stat"><b>{(d.area * 100).toFixed(1)} %</b><span>der Welt</span></div>
-        {micro && <><div class="stat"><b>{t.z.toFixed(2)}</b><span>Größe</span></div><div class="stat"><b>{t.mob.toFixed(2)}</b><span>Beweglichkeit</span></div></>}
+      {micro && <><div class="cap sub">Wohlfühlklima</div><TpcCurve t={t} T={d.T} color={speciesColor(t)} /></>}
+      <div class="kvgrid">
+        <div class="kv"><span>Bestand</span><b class="mono">{d.total.toFixed(0)}</b></div>
+        <div class="kv"><span>Fläche</span><b class="mono">{de(d.area * 100, 1)} %</b></div>
+        {micro && <><div class="kv"><span>Größe</span><b class="mono">{de(t.z, 2)}</b></div><div class="kv"><span>Beweglichkeit</span><b class="mono">{de(t.mob, 2)}</b></div></>}
       </div>
-      {know.data() && d.hist.length > 2 && <div style="margin-top:10px"><div class="label">Verlauf</div><Sparkline data={d.hist} w={300} h={40} color={speciesColor(t)} /></div>}
-      <div class="row" style="margin-top:14px;flex-wrap:wrap">
+      {know.data() && d.hist.length > 2 && <div><div class="cap sub">Verlauf</div><Sparkline data={d.hist} w={240} h={36} color={speciesColor(t)} /></div>}
+      <div class="row wrap">
         {micro && <button class={`btn small ${S.overlay.value === 'zone' ? 'primary' : ''}`} onClick={() => { S.overlay.value = S.overlay.value === 'zone' ? 'biome' : 'zone'; sim.selectSpecies(id); }}><Icon name="eye" size={16} />Wohlfühlzone</button>}
         {c.inv.pipette ? <button class="btn small" disabled={!canSample} onClick={async () => {
           const smp = await sim.sample(id); if (!smp) return;
           S.patchCareer(k => { k.freezer.push({ ...smp, frozenDay: Math.floor(S.day.value) }); });
           S.toast(`${smp.name} eingefroren (${S.career.value!.freezer.length}/3 Röhrchen).`, 'info'); sfx('buy');
-        }} title={!c.inv.kryo ? 'Kryo-Box fehlt' : c.freezer.length >= 3 ? 'Alle Röhrchen voll' : ''}><Icon name="snow" size={16} />Probe einfrieren</button> : null}
-        {know.tree() && <button class="btn small" onClick={() => { S.notebookTab.value = 'tree'; S.screen.value = 'notebook'; }}><Icon name="tree" size={16} />Stammbaum</button>}
+        }} title={!c.inv.kryo ? 'Kryo-Box fehlt' : c.freezer.length >= 3 ? 'Alle Röhrchen voll' : ''}><Icon name="snow" size={16} />Einfrieren</button> : null}
+        {know.tree() && <button class="btn small" onClick={() => { S.notebookTab.value = 'tree'; leaveGlass('notebook'); }}><Icon name="tree" size={16} />Stammbaum</button>}
       </div>
     </div>
   );
 }
 
+function cellData(x: number, y: number) {
+  const snap = sim.snapCur; if (!snap) return null;
+  const { w, h, sea } = snap.meta; if (x < 0 || y < 0 || x >= w || y >= h) return null;
+  const o = (y * w + x) * SNAP_FIELDS, b = snap.buf;
+  const hgt = b[o] / 255;
+  return { biome: b[o + 1], T: b[o + 4] / 4 - 20, soil: b[o + 5] / 255, N: b[o + 6] / 60, L: b[o + 9] / 255, hgt, sea: hgt < sea, seaLvl: sea,
+    strains: [b[o + 7], b[o + 8]].filter(v => v !== 255).map(v => snap.meta.strains[v]).filter(Boolean) };
+}
+const de = (v: number, n: number) => v.toFixed(n).replace('.', ',');
+function cellRows(d: NonNullable<ReturnType<typeof cellData>>) {
+  const r: [string, string][] = [];
+  r.push([d.sea ? 'Tiefe' : 'Höhe', know.height() ? (d.sea ? `${((d.seaLvl - d.hgt) * 1000).toFixed(0)} m` : `${((d.hgt - d.seaLvl) * 3000).toFixed(0)} m`) : d.sea ? 'Meer' : 'Land']);
+  r.push(['Temperatur', know.temp() ? `${de(d.T, 1)} °C` : tempWord(d.T)]);
+  r.push(['Licht', d.L > 0.6 ? 'hell' : d.L > 0.3 ? 'mittel' : d.L > 0.1 ? 'dämmrig' : 'dunkel']);
+  if (!d.sea) r.push(['Bodenfeuchte', know.rain() ? `${Math.round(d.soil * 100)} %` : d.soil > 0.6 ? 'nass' : d.soil > 0.3 ? 'feucht' : 'trocken']);
+  if (know.nutr()) r.push(['Nährstoffe', de(d.N, 2) + (d.N > 2.5 ? ' · zu viel' : '')]);
+  return r;
+}
 function CellDetail() {
-  const ci = S.cellInfo.value; const snap = sim.snapCur;
-  if (!ci || !snap) return null;
-  const o = ci.c * SNAP_FIELDS, b = snap.buf;
-  const biome = b[o + 1], T = b[o + 4] / 4 - 20, soil = b[o + 5] / 255, N = b[o + 6] / 60, L = b[o + 9] / 255, hgt = b[o] / 255;
-  const st = snap.meta.strains;
-  const sp = [b[o + 7], b[o + 8]].filter(x => x !== 255).map(x => st[x]).filter(Boolean);
+  const ci = S.cellInfo.value; void S.day.value;
+  if (!ci) return null;
+  const d = cellData(ci.x, ci.y); if (!d) return null;
   const reg = S.registry.value;
-  const sea = hgt < snap.meta.sea;
   return (
-    <div class="card">
-      <div class="row"><span class="dot" style={`background:${biomeCss(biome)};width:14px;height:14px`} /><h3 class="grow">{BIOMES[biome].name}</h3>
-        <button class="iconbtn" onClick={() => S.cellInfo.value = null}><Icon name="x" size={18} /></button></div>
-      <div class="stat-grid" style="margin-top:10px">
-        <div class="stat"><b>{know.temp() ? `${T.toFixed(1)} °C` : tempWord(T)}</b><span>Temperatur</span></div>
-        <div class="stat"><b>{L > 0.6 ? 'hell' : L > 0.3 ? 'mittel' : L > 0.1 ? 'dämmrig' : 'dunkel'}</b><span>Licht</span></div>
-        {!sea && <div class="stat"><b>{know.rain() ? `${Math.round(soil * 100)} %` : soil > 0.6 ? 'nass' : soil > 0.3 ? 'feucht' : 'trocken'}</b><span>Bodenfeuchte</span></div>}
-        <div class="stat"><b>{know.height() ? (sea ? `${((snap.meta.sea - hgt) * 1000).toFixed(0)} m tief` : `${((hgt - snap.meta.sea) * 3000).toFixed(0)} m hoch`) : sea ? 'Meer' : 'Land'}</b><span>{sea ? 'Tiefe' : 'Höhe'}</span></div>
-        {know.nutr() && <div class="stat"><b>{N.toFixed(2)}</b><span>Nährstoffe{N > 2.5 ? ' · zu viel!' : ''}</span></div>}
+    <div class="dbody">
+      <div class="dhead">
+        <button class="back" onClick={() => S.cellInfo.value = null} aria-label="Zurück zur Liste"><Icon name="chevL" size={16} />Liste</button>
+        <span class="grow" /><span class="mono faint tiny">Feld {ci.x}·{ci.y}</span>
       </div>
-      {sp.length > 0 && <><div class="label" style="margin:12px 0 4px">Hier lebt</div>
-        {sp.map(s => { const r = reg.find(x => x.id === s!.sp); return r ? (
-          <button class="sp-row" onClick={() => { S.selectedSpecies.value = r.id; sim.selectSpecies(r.id); S.cellInfo.value = null; }}>
-            <span class="dot" style={`background:${speciesColor(r.typus)}`} /><span class="grow"><div class="nm">{know.species() || S.career.value!.named.includes(r.id) ? r.name : 'eine Sorte'}</div><div class="sub">{know.species() ? roleText(r.typus) : ''}</div></span><Icon name="chevR" size={16} />
+      <h3 class="dtitle"><span class="dot" style={`background:${biomeCss(d.biome)}`} />{BIOMES[d.biome].name}</h3>
+      <div class="kvgrid">{cellRows(d).map(([k, v]) => <div class="kv"><span>{k}</span><b class="mono">{v}</b></div>)}</div>
+      {d.strains.length > 0 && <><div class="cap sub">Hier lebt</div>
+        {d.strains.map(s => { const r = reg.find(x => x.id === s!.sp); return r ? (
+          <button class="sp" style={`--c:${speciesColor(r.typus)}`} onClick={() => pickSpecies(r.id)}>
+            <span class="glyph"><Icon name={glyphOf(r.typus)} size={14} stroke={2.2} /></span>
+            <span class="grow"><b>{know.species() || S.career.value!.named.includes(r.id) ? r.name : 'eine Sorte'}</b><small>{know.species() ? roleText(r.typus) : ''}</small></span><span /><Icon name="chevR" size={14} class="faint" />
           </button>) : null; })}</>}
     </div>
   );
 }
 
-function ToolSheet() {
-  const tl = S.tool.value; const m = S.meta.value; const c = S.career.value!;
-  if (!m || tl === 'look') return null;
+// ---------------------------------------------------------------- Mitte: Meldung, Glas, Ansichten
+function alerts() {
+  const m = S.metrics.value, meta = S.meta.value; if (!m || !meta) return [];
+  const out: { text: string; why?: string; act?: { label: string; run: () => void } }[] = [];
+  const effNames: Record<string, string> = { hitze: 'Hitzewelle', lueften: 'Gelüftet: kalte Luft', strom: 'Stromausfall', staub: 'Staub verdunkelt', winter: 'Eiszeit' };
+  for (const e of meta.effects) if (effNames[e]) out.push({ text: effNames[e] });
+  if (meta.ctl.lamp <= 0.01) out.push({ text: 'Lampe aus', why: 'ohne Licht wächst nichts' });
+  const h = S.hist.value; if (h.length > 4) { const a = h[h.length - 4].bio, b = h[h.length - 1].bio; if (b < a * 0.7 && a > 50) out.push({ text: 'Leben nimmt ab' }); }
+  if (m.o2 > 12 && m.kMax <= 1) out.push({ text: 'Sauerstoff wird zum Gift', why: 'einfache Zellen vertragen ihn nicht' });
+  if (m.clarity < 0.85) out.push({ text: 'Wasser trüb', why: know.nutr() ? 'Algenblüte durch zu viele Nährstoffe' : undefined, act: know.nutr() ? { label: 'Nährstoffe zeigen', run: () => { S.overlay.value = 'nutr'; } } : undefined });
+  if (m.maxT > 33) out.push({ text: 'Zu heiß für viele Arten', act: know.temp() ? { label: 'Temperatur zeigen', run: () => { S.overlay.value = 'temp'; } } : undefined });
+  if (m.minT < -1) out.push({ text: 'Eis bildet sich' });
+  if (meta.ctl.lid) out.push({ text: 'Deckel offen', why: 'Zimmerluft strömt ein' });
+  return out;
+}
+function AlertLine() {
+  const a = alerts();
+  if (!a.length) return <div class="alertline" />;
+  const f = a[0];
+  return (
+    <div class="alertline">
+      <div class="alert" role="status"><span class="pulse" />{f.text}{f.why && <em> · {f.why}</em>}
+        {f.act && <button onClick={() => { f.act!.run(); sfx('click'); }}>{f.act.label}</button>}
+        {a.length > 1 && <span class="more" title={a.slice(1).map(x => x.text).join(', ')}>+{a.length - 1}</span>}
+      </div>
+    </div>
+  );
+}
+
+function Probe() {
+  const hc = hoverCell.value; void S.day.value;
+  if (!hc || S.tool.value !== 'look') return null;
+  const d = cellData(hc.x, hc.y); if (!d) return null;
+  const sp = d.strains.map(s => S.registry.value.find(r => r.id === s!.sp)).filter(Boolean);
+  return (
+    <div class="probe" style={`left:${hc.px}px;top:${hc.py}px`}>
+      <div class="pt">{BIOMES[d.biome].name}</div>
+      {cellRows(d).map(([k, v]) => <div class="kv"><span>{k}</span><b class="mono">{v}</b></div>)}
+      {sp.length > 0 && <div class="kv"><span>Hier lebt</span><b>{know.species() ? sp.map(r => r!.name).join(', ') : `${sp.length} Sorte${sp.length > 1 ? 'n' : ''}`}</b></div>}
+    </div>
+  );
+}
+
+function Views() {
+  const v = S.overlay.value; const sc = SCALES[v];
+  return (
+    <div class="viewbar">
+      <div class="seg views">
+        {VIEWS.map(x => {
+          const ok = !x.needs || x.needs();
+          return <button class={`${v === x.id ? 'on' : ''} ${ok ? '' : 'locked'}`} style={`--c:${x.color}`} title={ok ? '' : `Braucht: ${itemById(x.item!).name}`} onClick={() => {
+            if (!ok) { S.toast(`Diese Ansicht braucht: ${itemById(x.item!).name}`, 'info'); return; }
+            if (x.id === 'zone' && S.selectedSpecies.value < 0) { S.toast('Wähle zuerst eine Art aus der Liste.', 'info'); return; }
+            S.overlay.value = x.id; sfx('click');
+          }}>{x.name}</button>;
+        })}
+      </div>
+      <div class="scalebar">
+        {sc ? <><span>{sc[0]}</span><i style={`--g:${sc[1]}`} /><span>{sc[2]}</span></>
+          : v === 'species' ? <span>Farbe = Art · Punkte = Populationen</span> : <span>Legende im Tab „Landschaften“</span>}
+      </div>
+    </div>
+  );
+}
+
+function MiniStrip() {
+  const m = S.metrics.value; if (!m) return null;
+  const counts = countingMetrics();
+  const items: [string, string, string, string][] = [
+    ['species', know.species() ? 'Arten' : 'Leben', know.species() ? String(m.species) : countWord(m.species), '#a98bff'],
+    ['bio', 'Biomasse', know.data() ? Math.round(m.total).toLocaleString('de-DE') : bioWord(m.green), '#5dffa8'],
+    ['o2', 'Sauerstoff', know.o2() ? m.o2.toFixed(1).replace('.', ',') + ' %' : o2Word(m.o2), '#2ef2ff'],
+    ['temp', 'Temperatur', know.temp() ? m.avgT.toFixed(1).replace('.', ',') + ' °C' : tempWord(m.avgT), '#ff4fd8'],
+  ];
+  return (
+    <div class="ministrip">
+      {items.map(([id, n, v, c]) => <button class={`mini ${counts.has(id) ? 'count' : ''}`} style={`--c:${c}`} onClick={() => { sheet.value = 'werte'; }}><span>{n}</span><b class={/\d/.test(v) ? '' : 'word'}>{v}</b></button>)}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Rechts: Bedingungen
+function Ctl({ links, color, icon, name, value, children }: { links: string; color: string; icon: string; name: string; value?: ComponentChildren; children?: ComponentChildren }) {
+  const on = () => { linking.value = links.split(','); }, off = () => { linking.value = []; };
+  return (
+    <div class="ctl" style={`--c:${color}`} onPointerEnter={on} onPointerLeave={off} onFocusIn={on} onFocusOut={off}>
+      <Icon name={icon} size={18} class="ic" />
+      <span class="nm">{name}</span>{value !== undefined && <b class="v mono">{value}</b>}
+      {children && <div class="wide">{children}</div>}
+    </div>
+  );
+}
+function Range({ min, max, step, value, onInput, onChange, label }: { min: number; max: number; step: number; value: number; onInput?: (v: number) => void; onChange: (v: number) => void; label: string }) {
+  // Während des Ziehens gilt der lokale Wert; sonst würde jeder neue Snapshot den Regler zurücksetzen.
+  const [local, setLocal] = useState<number | null>(null);
+  const v = local ?? value;
+  const p = ((v - min) / (max - min || 1)) * 100;
+  const end = (el: HTMLInputElement) => { onChange(+el.value); setTimeout(() => setLocal(null), 400); };
+  return <input type="range" aria-label={label} min={min} max={max} step={step} value={v} style={`--p:${p}%`}
+    onInput={e => { const n = +(e.target as HTMLInputElement).value; setLocal(n); onInput?.(n); }}
+    onChange={e => end(e.target as HTMLInputElement)}
+    onBlur={() => setLocal(null)} />;
+}
+const DIR_ORDER = [2, 3, 4, 5, 6, 7, 0, 1]; // N NO O SO S SW W NW → Index in WIND_NAMES
+const DIR_SHORT = ['W', 'NW', 'N', 'NO', 'O', 'SO', 'S', 'SW'];
+
+function Conditions() {
+  const m = S.meta.value, c = S.career.value!; const mt = S.metrics.value;
+  const [lampLocal, setLampLocal] = useState<number | null>(null);
+  useEffect(() => { if (lampLocal === null) return; const t = setTimeout(() => setLampLocal(null), 1500); return () => clearTimeout(t); }, [lampLocal]);
+  if (!m) return null;
   const ctl = m.ctl;
-  const T = TOOLS.find(x => x.id === tl)!;
-  const lampMax = c.inv.tageslicht ? 1 : 0.6;
-  let body = null;
-  if (tl === 'sun') body = <>
-    <div class="row"><span class="grow">Stärke</span><span class="big">{Math.round(ctl.lamp * 100)} %</span></div>
-    <input type="range" min="0" max={lampMax * 100} step="5" value={Math.round(ctl.lamp * 100)} onChange={e => sim.sendCmd({ type: 'sun', I: +(e.target as HTMLInputElement).value / 100 })} />
-    {lampMax < 1 && <p class="tiny faint">Mehr als 60 % schafft erst die Tageslichtlampe.</p>}
-    <p class="muted small">{c.inv.arm ? 'Ziehe die Sonne über die Schale: Wo sie steht, ist es warm. Am Rand wird es kalt.' : 'Die Kit-Lampe steht fest in der Mitte. Mit einem Lampenarm kannst du sie verschieben.'}</p>
-    {c.inv.uhr && <><div class="row"><span class="grow">Tageslänge</span><b>{ctl.photo} h</b></div>
-      <input type="range" min="6" max="18" step="1" value={ctl.photo} onChange={e => sim.sendCmd({ type: 'photo', hours: +(e.target as HTMLInputElement).value })} /></>}
-  </>;
-  if (tl === 'wind') {
-    const eight = !!c.inv.vent8;
-    const grid = [7, 6, 5, 0, -1, 4, 1, 2, 3]; // Index = woher; Kompass-Anordnung NW N NO / W · O / SW S SO
-    const label = ['W', 'NW', 'N', 'NO', 'O', 'SO', 'S', 'SW'];
-    const order = [1, 2, 3, 0, -1, 4, 7, 6, 5];
-    void grid;
-    body = <>
-      <p class="muted small">Woher weht der Wind? Er trägt feuchte Meeresluft. An Bergen regnet sie ab, dahinter wird es trocken.</p>
-      <div class="compass">{order.map(i => i < 0 ? <button class={!ctl.windOn ? 'on' : ''} onClick={() => sim.sendCmd({ type: 'wind', dir: ctl.wind, on: !ctl.windOn })}>{ctl.windOn ? 'aus' : 'an'}</button>
-        : <button class={ctl.windOn && ctl.wind === i ? 'on' : ''} disabled={!eight && i % 2 === 1} onClick={() => sim.sendCmd({ type: 'wind', dir: i, on: true })}>{label[i]}</button>)}</div>
-      <p class="small">Wind aus {WIND_NAMES[ctl.wind]}{!ctl.windOn ? ' (Ventilator aus, nur leichte Brise)' : ''}</p>
-      {eight && <><div class="row"><span class="grow">Stärke</span><b>{Math.round(ctl.windStr * 100)} %</b></div>
-        <input type="range" min="0" max="100" step="5" value={Math.round(ctl.windStr * 100)} onChange={e => sim.sendCmd({ type: 'wind', dir: ctl.wind, on: true, str: +(e.target as HTMLInputElement).value / 100 })} /></>}
-      <p class="tiny faint">Regen und Bodenfeuchte ändern sich über einige Tage.</p>
-    </>;
-  }
-  if (tl === 'water') body = <>
-    <p class="muted small">Mehr Wasser überflutet Küsten, weniger Wasser legt Landbrücken frei. Landbrücken verbinden getrennte Arten.</p>
-    <div class="row"><button class="btn grow" onClick={() => { sim.sendCmd({ type: 'water', delta: -0.012 }, true); sfx('place'); }}><Icon name="minus" size={16} />Ablassen</button>
-      <button class="btn grow" onClick={() => { sim.sendCmd({ type: 'water', delta: 0.012 }, true); sfx('place'); }}><Icon name="plus" size={16} />Nachfüllen</button></div>
-    {S.metrics.value && <p class="small">Landanteil: {(S.metrics.value.landFrac * 100).toFixed(0)} %</p>}
-  </>;
-  if (tl === 'volcano') body = <><p class="muted small">Tippe auf die Welt, um einen Vulkanstein zu setzen. Vulkane heben Land, düngen die Umgebung und wärmen sie.</p><p class="small">Vulkansteine: <b>{c.inv.vulkan ?? 0}</b></p></>;
-  if (tl === 'terrain') body = <>
-    <div class="seg"><button class={(S.career.value!.flags.terrainUp ?? true) ? 'on' : ''} onClick={() => S.patchCareer(k => { k.flags.terrainUp = true; })}>Anheben</button>
-      <button class={!(S.career.value!.flags.terrainUp ?? true) ? 'on' : ''} onClick={() => S.patchCareer(k => { k.flags.terrainUp = false; })}>Absenken</button></div>
-    <p class="muted small">Über die Welt streichen formt Gebirge oder Becken. Jeder Strich kostet einen Erdkrümel. Leben am Ort stirbt dabei.</p>
-    <p class="small">Erdkrümel: <b>{c.inv.kruemel ?? 0}</b></p>
-  </>;
-  if (tl === 'dose') body = <><p class="muted small">Tippe, wohin eine Prise Nährsalz soll. Gezielt düngen hilft. Zu viel trübt das Wasser und raubt Sauerstoff.</p><p class="small">Prisen: <b>{c.inv.salz ?? 0}</b></p></>;
-  if (tl === 'net') body = <p class="muted small">Tippe auf eine Stelle: Der Kescher entfernt alles Leben im Kreis. Er trifft alle Arten.</p>;
-  if (tl === 'inoc') body = <>
-    <p class="muted small">Wähle, was du einsetzen willst, dann tippe auf die Welt.</p>
-    <div class="col">
+  const lampMax = c.inv.tageslicht ? 100 : 60;
+  const lamp = lampLocal ?? Math.round(ctl.lamp * 100);
+  const eight = !!c.inv.vent8;
+  const devices = ['arm', 'tageslicht', 'uhr', 'vent', 'vent8', 'kanne', 'deckel', 'heizplatte', 'uv', 'kuehlplatte'];
+  const missing = devices.map(itemById).filter(it => it && it.act <= c.act && !c.inv[it.id] && (!it.requires || c.inv[it.requires]));
+  return (
+    <section class={`gpanel conditions ${S.locked.value ? 'locked' : ''}`} aria-disabled={S.locked.value ? 'true' : undefined}>
+      <div class="ph"><span class="cap">Bedingungen</span><small>{S.locked.value ? 'gerade nicht erreichbar' : 'wirken auf die ganze Welt'}</small></div>
+      <Ctl links="temp,o2,bio" color="var(--sun)" icon="sun" name="Lampe" value={`${lamp} %`}>
+        <Range label="Lampenstärke" min={0} max={lampMax} step={5} value={Math.min(lamp, lampMax)} onInput={v => setLampLocal(v)}
+          onChange={v => { sim.sendCmd({ type: 'sun', I: v / 100 }, true); sfx('click'); }} />
+        <p class="sub">{c.inv.arm ? 'Den Lichtfleck im Glas mit der Maus oder dem Finger ziehen.' : 'Die Kit-Lampe steht fest in der Mitte.'}{lampMax < 100 ? ' Mehr als 60 % schafft die Tageslichtlampe.' : ''}</p>
+      </Ctl>
+      {c.inv.uhr ? <Ctl links="bio,temp" color="var(--sun)" icon="clock" name="Tageslänge" value={`${ctl.photo} h`}>
+        <Range label="Tageslänge" min={6} max={18} step={1} value={ctl.photo} onChange={v => sim.sendCmd({ type: 'photo', hours: v })} />
+      </Ctl> : null}
+      {c.inv.vent ? <>
+        <div class="sep" />
+        <Ctl links="temp,species" color="var(--cyan)" icon="wind" name="Wind aus" value={ctl.windOn ? `${DIR_SHORT[ctl.wind]}${eight ? ` · ${Math.round(ctl.windStr * 100)} %` : ''}` : 'aus'}>
+          <div class="dirs">
+            {DIR_ORDER.map(i => <button class={ctl.windOn && ctl.wind === i ? 'on' : ''} disabled={!eight && i % 2 === 1} aria-label={`Wind aus ${WIND_NAMES[i]}`} onClick={() => sim.sendCmd({ type: 'wind', dir: i, on: true })}>{DIR_SHORT[i]}</button>)}
+            <button class={!ctl.windOn ? 'on off' : ''} onClick={() => sim.sendCmd({ type: 'wind', dir: ctl.wind, on: !ctl.windOn })}>{ctl.windOn ? 'aus' : 'an'}</button>
+          </div>
+          {eight && <Range label="Windstärke" min={0} max={100} step={5} value={Math.round(ctl.windStr * 100)} onChange={v => sim.sendCmd({ type: 'wind', dir: ctl.wind, on: true, str: v / 100 })} />}
+          <p class="sub">Wind trägt feuchte Meeresluft. An Bergen regnet sie ab, dahinter wird es trocken.</p>
+        </Ctl>
+      </> : null}
+      {c.inv.kanne ? <>
+        <div class="sep" />
+        <Ctl links="land,species" color="var(--water)" icon="drop" name="Meeresspiegel" value={mt && know.height() ? `Land ${Math.round(mt.landFrac * 100)} %` : ''}>
+          <div class="stepper">
+            <button class="btn small" onClick={() => { sim.sendCmd({ type: 'water', delta: -0.012 }, true); sfx('place'); }}><Icon name="minus" size={14} />Ablassen</button>
+            <button class="btn small" onClick={() => { sim.sendCmd({ type: 'water', delta: 0.012 }, true); sfx('place'); }}><Icon name="plus" size={14} />Nachfüllen</button>
+          </div>
+        </Ctl>
+      </> : null}
+      {c.inv.deckel || c.inv.heizplatte || c.inv.kuehlplatte || c.inv.uv ? <div class="sep" /> : null}
+      {c.inv.deckel ? <Ctl links="o2,temp" color="var(--cyan)" icon="lid" name="Deckel lüften" value={<button class="sw" role="switch" aria-checked={ctl.lid ? 'true' : 'false'} aria-label="Deckel lüften" onClick={() => sim.sendCmd({ type: 'lid', open: !ctl.lid }, true)} />}>
+        <p class="sub">Zimmerluft mit 21 % Sauerstoff strömt ein.</p>
+      </Ctl> : null}
+      {c.inv.heizplatte ? <Ctl links="temp" color="var(--heat)" icon="heat" name="Heizplatte" value={<span class="row" style="gap:8px">{ctl.thermo ? `${ctl.thermoSet} °C` : 'aus'}<button class="sw" role="switch" aria-checked={ctl.thermo ? 'true' : 'false'} aria-label="Heizplatte" onClick={() => sim.sendCmd({ type: 'thermo', on: !ctl.thermo, set: ctl.thermoSet, max: 8 })} /></span>}>
+        <Range label="Grundtemperatur" min={6} max={20} step={1} value={ctl.thermoSet} onChange={v => sim.sendCmd({ type: 'thermo', on: ctl.thermo, set: v, max: 8 })} />
+      </Ctl> : null}
+      {c.inv.kuehlplatte ? <Ctl links="temp" color="var(--water)" icon="cold" name="Kühlplatte" value={`−${ctl.cool} °C`}>
+        <Range label="Kühlung" min={0} max={10} step={1} value={ctl.cool} onChange={v => sim.sendCmd({ type: 'cool', delta: v })} />
+      </Ctl> : null}
+      {c.inv.uv ? <Ctl links="species" color="var(--violet)" icon="uv" name="Mutationsrate" value={`×${ctl.uv.toFixed(1).replace('.', ',')}`}>
+        <Range label="Mutationsrate" min={0.5} max={4} step={0.5} value={ctl.uv} onChange={v => sim.sendCmd({ type: 'uv', factor: v })} />
+        <p class="sub">Mehr Mutationen, aber auch mehr Fehlschläge.</p>
+      </Ctl> : null}
+      {missing.length > 0 && <button class="shopline" onClick={() => leaveGlass('shop')}>
+        <span>Im Laden: {missing.slice(0, 3).map((it, i) => <><b>{it!.name}</b>{i < Math.min(3, missing.length) - 1 ? ', ' : ''}</>)}{missing.length > 3 ? ` +${missing.length - 3}` : ''}</span>
+        <span class="price">ab {Math.min(...missing.map(it => price(c, it!.price)))} {S.cur.value}</span>
+      </button>}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------- Unten: Eingriffe, Tempo, Menü
+function ToolOptions() {
+  const tl = S.tool.value; const c = S.career.value!;
+  const T = TOOLS.find(x => x.id === tl) ?? TOOLS[0];
+  if (tl === 'terrain') return <div class="topts"><span>{T.hint}</span>
+    <div class="seg"><button class={(c.flags.terrainUp ?? true) ? 'on' : ''} onClick={() => S.patchCareer(k => { k.flags.terrainUp = true; })}>Anheben</button>
+      <button class={!(c.flags.terrainUp ?? true) ? 'on' : ''} onClick={() => S.patchCareer(k => { k.flags.terrainUp = false; })}>Absenken</button></div></div>;
+  if (tl === 'inoc') return <div class="topts"><span>{T.hint}</span>
+    <div class="row wrap">
       {c.inv.starter ? <button class={`btn small ${c.flags.inoc === 'starter' ? 'primary' : ''}`} onClick={() => S.patchCareer(k => { k.flags.inoc = 'starter'; })}>Starterkultur ({c.inv.starter})</button> : null}
       {c.inv.tuempel ? <button class={`btn small ${c.flags.inoc === 'tuempel' ? 'primary' : ''}`} onClick={() => S.patchCareer(k => { k.flags.inoc = 'tuempel'; })}>Tümpelprobe ({c.inv.tuempel})</button> : null}
-      {c.freezer.map((f, i) => <button class={`btn small ${c.flags.inoc === 'f' + i ? 'primary' : ''}`} onClick={() => S.patchCareer(k => { k.flags.inoc = 'f' + i; })}><Icon name="snow" size={14} />{f.name} (Tag {f.frozenDay})</button>)}
-      {!c.inv.starter && !c.inv.tuempel && !c.freezer.length && <p class="small faint">Nichts zum Einsetzen. Kauf eine Starterkultur oder friere eine Art ein.</p>}
-    </div>
-  </>;
-  if (tl === 'gear') body = <>
-    {c.inv.heizplatte ? <><div class="row"><span class="grow">Thermostat-Heizplatte</span><button class={`btn small ${ctl.thermo ? 'primary' : ''}`} onClick={() => sim.sendCmd({ type: 'thermo', on: !ctl.thermo, set: ctl.thermoSet, max: 8 })}>{ctl.thermo ? 'an' : 'aus'}</button></div>
-      <div class="row"><span class="grow small muted">Grundtemperatur halten bei</span><b>{ctl.thermoSet} °C</b></div>
-      <input type="range" min="6" max="20" step="1" value={ctl.thermoSet} onChange={e => sim.sendCmd({ type: 'thermo', on: ctl.thermo, set: +(e.target as HTMLInputElement).value, max: 8 })} /></> : <p class="small faint">Thermostat-Heizplatte: noch nicht gekauft.</p>}
-    {c.inv.kuehlplatte ? <><div class="row"><span class="grow">Kühlplatte</span><b>−{ctl.cool} °C</b></div><input type="range" min="0" max="10" step="1" value={ctl.cool} onChange={e => sim.sendCmd({ type: 'cool', delta: +(e.target as HTMLInputElement).value })} /></> : null}
-    {c.inv.uv ? <><div class="row"><span class="grow">UV-Lampe „Mutator“</span><b>×{ctl.uv.toFixed(1)}</b></div><input type="range" min="0.5" max="4" step="0.5" value={ctl.uv} onChange={e => sim.sendCmd({ type: 'uv', factor: +(e.target as HTMLInputElement).value })} /><p class="tiny faint">Mehr Mutationen, aber auch mehr Fehlschläge.</p></> : <p class="small faint">UV-Lampe: noch nicht gekauft.</p>}
-    {c.inv.deckel ? <div class="row"><span class="grow">Deckel</span><button class={`btn small ${ctl.lid ? 'primary' : ''}`} onClick={() => sim.sendCmd({ type: 'lid', open: !ctl.lid }, true)}>{ctl.lid ? 'offen' : 'zu'}</button></div> : <p class="small faint">Lüftungsdeckel: noch nicht gekauft.</p>}
-  </>;
+      {c.freezer.map((f, i) => <button class={`btn small ${c.flags.inoc === 'f' + i ? 'primary' : ''}`} onClick={() => S.patchCareer(k => { k.flags.inoc = 'f' + i; })}><Icon name="snow" size={14} />{f.name}</button>)}
+      {!c.inv.starter && !c.inv.tuempel && !c.freezer.length && <span class="faint">Nichts zum Einsetzen.</span>}
+    </div></div>;
+  return <div class="topts"><span>{T.hint}</span>{tl !== 'look' && <button class="btn small ghost" onClick={() => { S.tool.value = 'look'; restoreSpeed(); }}><Icon name="x" size={14} />Fertig</button>}</div>;
+}
+function Tools() {
+  const c = S.career.value!; const tl = S.tool.value;
   return (
-    <div class="card sheet-tool">
-      <div class="row"><Icon name={T.icon} /><h3 class="grow">{T.name}</h3><button class="iconbtn" onClick={() => { S.tool.value = 'look'; restoreSpeed(); }}><Icon name="x" size={18} /></button></div>
-      {body}
+    <div class="tools" aria-label="Eingriffe am Ort">
+      {TOOLS.map(t => {
+        const owned = !t.needs || (c.inv[t.needs] ?? 0) > 0 || (t.id === 'inoc' && (c.inv.starter || c.inv.tuempel || c.freezer.length));
+        const cnt = t.count?.();
+        return <button class={`tool ${tl === t.id ? 'on' : ''} ${owned ? '' : 'locked'} ${t.id === 'dose' && !c.flags.dosed && c.current?.id === 'schulfest' ? 'pulse' : ''}`} disabled={S.locked.value} onClick={() => selectTool(t.id)}>
+          {cnt !== undefined && owned && <span class="n">{cnt}</span>}
+          <Icon name={t.icon} size={19} />{t.name}</button>;
+      })}
     </div>
   );
 }
-
-function ContestCard() {
-  const st = liveStatus(); const c = S.career.value!;
-  if (!st) {
-    const av = available(c).filter(x => !c.done.includes(x.id) || x.finale);
-    return <div class="card"><div class="label">Kein Wettbewerb</div><p class="small muted" style="margin:6px 0 10px">Freies Spiel. Wähle im Kalender den nächsten Wettbewerb.</p>
-      {av[0] && <button class="btn small primary" onClick={() => { if (startContest(av[0].id)) S.toast(`${av[0].name} beginnt!`, 'info'); else S.screen.value = 'calendar'; }}>{av[0].name} starten</button>}</div>;
-  }
+function Speed() {
+  const sp = S.speed.value, pz = S.paused.value, maxI = maxSpeedIndex();
   return (
-    <div class="card">
-      <div class="label">Wenn die Jury jetzt käme</div>
-      <div class="row" style="margin:8px 0"><h3 class="grow" style="font-size:18px">{st.ct.name}</h3><Stars n={st.stars} unknown={st.unknown} size={18} /></div>
-      {st.cats.map(x => { const cat = CATEGORIES[x.id]; const unk = cat.needs && !S.has(cat.needs); return (
-        <div style="padding:6px 0"><div class="row small"><span class="grow">{cat.name}{st.cats.length > 1 ? ` (${Math.round(x.w * 100)} %)` : ''}</span><b>{unk ? '?' : Math.round(x.s)}</b></div>
-          <Bar v={unk ? 0 : x.s / 100} color="var(--accent)" />
-          <div class="tiny faint" style="margin-top:3px">{unk ? `${itemById(cat.needs!).name} fehlt` : cat.fmt(x.x)}</div></div>); })}
-      <p class="tiny muted" style="margin-top:6px">Noch {Math.ceil(st.daysLeft)} Tage · {know.rank() ? `aktuell Platz ${st.place}` : `★ ab 40, ★★ ab 65, ★★★ ab 85 Punkten`}</p>
+    <div class="seg time" role="group" aria-label="Tempo">
+      <button class={pz ? 'on' : ''} onClick={() => setSpeedIndex(-1)} aria-label="Pause" disabled={S.locked.value}><Icon name="pause" size={14} /></button>
+      {S.SPEEDS.slice(0, maxI + 1).map((s, i) => <button class={!pz && sp === i ? 'on' : ''} disabled={S.locked.value} onClick={() => { setSpeedIndex(i); prevSpeed = -1; }}>{s.label}</button>)}
     </div>
   );
 }
-
-function StatusChips() {
-  const m = S.metrics.value, meta = S.meta.value; if (!m || !meta) return null;
-  const chips: { text: string; kind: string }[] = [];
-  const effNames: Record<string, string> = { hitze: 'Hitzewelle', lueften: 'Gelüftet: kalte Luft', strom: 'Stromausfall', staub: 'Staub verdunkelt', winter: 'Eiszeit', jury: '' };
-  for (const e of meta.effects) if (effNames[e]) chips.push({ text: effNames[e], kind: 'bad' });
-  if (meta.ctl.lamp <= 0.01) chips.push({ text: 'Lampe aus', kind: 'bad' });
-  if (m.clarity < 0.85) chips.push({ text: 'Wasser trüb', kind: 'bad' });
-  if (m.o2 > 12 && m.kMax <= 1) chips.push({ text: 'Sauerstoff wird zum Gift', kind: 'bad' });
-  if (meta.ctl.lid) chips.push({ text: 'Deckel offen', kind: '' });
-  const h = S.hist.value; if (h.length > 4) { const a = h[h.length - 4].bio, b = h[h.length - 1].bio; if (b < a * 0.7 && a > 50) chips.push({ text: 'Leben nimmt ab', kind: 'bad' }); }
-  if (m.minT < -1) chips.push({ text: 'Eis bildet sich', kind: '' });
-  if (m.maxT > 33) chips.push({ text: 'Zu heiß für viele Arten', kind: 'bad' });
-  const last = S.toasts.value.filter(t => t.kind === 'species').slice(-1)[0];
-  return (
-    <div class="chips">
-      {last && <span class="chip" onClick={() => { if (last.species !== undefined) { S.selectedSpecies.value = last.species; sim.selectSpecies(last.species); } }}><Icon name="sparkle" size={14} />{last.text.length > 60 ? last.text.slice(0, 58) + '…' : last.text}</span>}
-      {chips.slice(0, 4).map(c => <span class={`chip ${c.kind}`}>{c.kind === 'bad' && <Icon name="warn" size={14} />}{c.text}</span>)}
-    </div>
-  );
+function Menu() {
+  const c = S.career.value!;
+  const items: [string, string, () => void][] = [
+    ['home', 'Zimmer', () => leaveGlass('hub')],
+    ['book', 'Heft', () => leaveGlass('notebook')],
+    ['store', 'Laden', () => leaveGlass('shop')],
+    ['calendar', 'Kalender', () => leaveGlass('calendar')],
+    ['camera', 'Foto', () => takePhoto(`Weltenglas · ${c.name}s Welt · Tag ${Math.floor(S.day.value)}`)],
+    ['gear', 'System', () => { S.modal.value = { kind: 'settings' }; }],
+  ];
+  return <div class="menu">{items.map(([ic, n, f]) => <button class="tool" onClick={() => { sfx('click'); f(); }}><Icon name={ic} size={19} />{n}</button>)}</div>;
 }
-
-function Legend() {
-  const v = S.overlay.value;
-  const L: Record<string, [string, string]> = {
-    temp: ['−5 °C', 'linear-gradient(90deg,#1f33d9,#2ee6ff,#9d7bff,#ff4fd8,#ff7a5c)'], rain: ['trocken', 'linear-gradient(90deg,#2a1640,#6a3fd0,#2ee6ff)'],
-    height: ['tief', 'linear-gradient(90deg,#060a24,#173a8c,#2ee6ff,#9d7bff,#ff4fd8,#fff)'], nutr: ['karg', 'linear-gradient(90deg,#14102a,#3dffb0,#ff4fd8)'],
-    zone: ['ungeeignet', 'linear-gradient(90deg,#ff4d7a,#1a1530,#3dffb0)'], light: ['dunkel', 'linear-gradient(90deg,#06050c,#7a5cff,#e8fbff)'],
-  };
-  const end: Record<string, string> = { temp: '40 °C', rain: 'nass', height: 'hoch', nutr: 'überdüngt', zone: 'ideal', light: 'hell' };
-  if (!L[v]) return null;
-  return <div class="legend"><span>{L[v][0]}</span><span class="grad" style={`background:${L[v][1]}`} /><span>{end[v]}</span></div>;
-}
-
-// Zell-Messung unter dem Mauszeiger — nur was die Instrumente schon messen können
-const hoverCell = signal<{ x: number; y: number } | null>(null);
-function Readout() {
-  const hc = hoverCell.value; const snap = sim.snapCur; void S.day.value;
-  if (!hc || !snap) return null;
-  const { w, h, sea } = snap.meta; if (hc.x < 0 || hc.y < 0 || hc.x >= w || hc.y >= h) return null;
-  const o = (hc.y * w + hc.x) * SNAP_FIELDS, b = snap.buf;
-  const T = b[o + 4] / 4 - 20, hgt = b[o] / 255, below = hgt < sea;
-  const parts = [`${String(hc.x).padStart(3, '0')}·${String(hc.y).padStart(3, '0')}`, BIOMES[b[o + 1]].name.toUpperCase()];
-  if (know.temp()) parts.push(`${T.toFixed(1)}°C`);
-  if (know.height()) parts.push(below ? `−${((sea - hgt) * 1000).toFixed(0)}m` : `+${((hgt - sea) * 3000).toFixed(0)}m`);
-  if (know.nutr()) parts.push(`N ${(b[o + 6] / 60).toFixed(2)}`);
-  return <div class="readout"><i>◎</i> {parts.join('  |  ')}</div>;
-}
-
-function Ticker() {
-  const ch = S.chronicle.value; const last = ch[ch.length - 1];
-  return <div class="ticker">{last ? `T+${String(Math.floor(last.tick / 4)).padStart(3, '0')}  ${chronText(last.text, last.kind)}` : 'Das Glas ist still.'}</div>;
+function PhoneTabs() {
+  const sh = sheet.value; const c = S.career.value!;
+  const pulse = !c.flags.dosed && c.current?.id === 'schulfest' && (c.inv.salz ?? 0) > 0;
+  const tabs: [typeof sh, string, string][] = [['werte', 'bars', 'Werte'], ['bed', 'sliders', 'Bedingungen'], ['eingriff', 'lens', 'Eingriff'], ['menu', 'menu', 'Menü']];
+  return <div class="ptabs">{tabs.map(([id, ic, n]) => <button class={`${sh === id ? 'on' : ''} ${pulse && id === 'eingriff' && sh !== id ? 'pulse' : ''}`} onClick={() => { sheet.value = sh === id ? '' : id; sfx('click'); }}><Icon name={ic} size={20} />{n}</button>)}</div>;
 }
 
 // ---------------------------------------------------------------- Hauptansicht
+/** Lernkarten halten die Zeit an, damit nichts verpasst wird */
+function CardPause() {
+  const isCard = S.modal.value?.kind === 'card';
+  const resume = useRef(-2);
+  useEffect(() => {
+    if (isCard && !S.paused.value && resume.current === -2) { resume.current = S.speed.value; setSpeedIndex(-1); }
+    if (!isCard && resume.current !== -2) { const r = resume.current; resume.current = -2; if (S.paused.value && !S.modal.value) setSpeedIndex(r); }
+  }, [isCard]);
+  return null;
+}
+function TutorialWatch() {
+  const c = S.career.value!; const d = S.day.value;
+  useEffect(() => {
+    if (c.flags.tutorial === 2 && d >= 2.5 && !c.current) {
+      S.patchCareer(k => { k.flags.tutorial = 3; });
+      startContest('schulfest');
+      showCard('contest');
+    }
+  }, [d >= 2.5, c.flags.tutorial]);
+  return null;
+}
 export function GlassView() {
   const c = S.career.value!;
   const tl = S.tool.value;
   const T = TOOLS.find(x => x.id === tl);
   const lastPaint = useRef(0);
-  const dragSun = useRef(false);
+  const dragSun = useRef<0 | 1 | 2>(0); // 0 = nein, 1 = gegriffen (noch Tippen), 2 = zieht
+  const downAt = useRef<{ x: number; y: number } | null>(null);
   const lastPt = useRef<{ x: number; y: number } | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const phone = useMedia('(max-width: 900px)');
+  const box = useSize(stageRef);
+  const aspect = S.metaAspect.value;
+
+  // Glasgröße: am Desktop quer, auf dem Handy um 90° gedreht (hochkant)
+  let gw = 0, gh = 0;
+  if (phone) { const shortS = Math.min(box.w - 4, (box.h - 4) / aspect); gh = Math.max(0, Math.floor(shortS)); gw = Math.floor(gh * aspect); }
+  else { gw = Math.max(0, Math.floor(Math.min(box.w - 24, (box.h - 24) * aspect))); gh = Math.floor(gw / aspect); }
+
+  useEffect(() => () => { sheet.value = ''; hoverCell.value = null; linking.value = []; S.cellInfo.value = null; }, []);
 
   // Tastatur
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT' || S.locked.value) return;
-      if (e.key === 'Escape') { if (S.modal.value) S.modal.value = null; else { S.tool.value = 'look'; S.selectedSpecies.value = -1; S.cellInfo.value = null; } return; }
+      if (e.key === 'Escape') { if (S.modal.value) S.modal.value = null; else { S.tool.value = 'look'; S.selectedSpecies.value = -1; S.cellInfo.value = null; sheet.value = ''; } return; }
       if (S.modal.value) return;
       if (e.key === ' ') { e.preventDefault(); if (S.paused.value) setSpeedIndex(S.speed.value); else setSpeedIndex(-1); }
       else if (e.key >= '1' && e.key <= '4') { const i = +e.key - 1; if (i <= maxSpeedIndex()) setSpeedIndex(i); }
-      else if (e.key === 's') selectTool('sun'); else if (e.key === 'w') selectTool('wind'); else if (e.key === 'n') selectTool('dose');
-      else if (e.key === 'u') selectTool('look'); else if (e.key === 'h') S.screen.value = 'notebook';
+      else if (e.key === 'n') selectTool('dose');
+      else if (e.key === 'u') selectTool('look'); else if (e.key === 'h') leaveGlass('notebook');
     };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
@@ -423,33 +679,39 @@ export function GlassView() {
   useEffect(() => {
     if (c.flags.tutorial === 1 && !S.modal.value) S.modal.value = { kind: 'tutorial-lamp' };
   }, [c.flags.tutorial]);
-  useEffect(() => {
-    if (c.flags.tutorial === 2 && S.day.value >= 2.5 && !c.current) {
-      S.patchCareer(k => { k.flags.tutorial = 3; });
-      startContest('schulfest');
-      showCard('contest');
-    }
-  }, [S.day.value, c.flags.tutorial]);
 
-  const onPointer = (x: number, y: number, phase: 'down' | 'move' | 'up' | 'hover') => {
+  // Auswahl auf dem Handy: Werte-Blatt öffnen
+  const sel = S.selectedSpecies.value, ci = S.cellInfo.value;
+  useEffect(() => { if (phone && (sel >= 0 || ci)) sheet.value = 'werte'; }, [sel, ci]);
+
+  const onPointer = (x: number, y: number, phase: 'down' | 'move' | 'up' | 'hover', e?: PointerEvent) => {
     if (S.locked.value) return;
     const meta = S.meta.value; if (!meta) return;
     const { w, h } = meta;
     if (x < 0 || y < 0 || x >= w || y >= h) return;
     const cx = Math.floor(x), cy = Math.floor(y);
     const k = S.career.value!;
+    if ((phase === 'hover' || phase === 'move') && e && stageRef.current && e.pointerType === 'mouse') {
+      const rc = stageRef.current.getBoundingClientRect();
+      let px = e.clientX - rc.left + 18, py = e.clientY - rc.top + 18;
+      if (px + 200 > rc.width) px -= 236; if (py + 150 > rc.height) py -= 170;
+      hoverCell.value = { x: cx, y: cy, px: Math.max(0, px), py: Math.max(0, py) };
+    }
+    // Lampe ziehen: mit Lampenarm im Prüfen-Modus am Lichtfleck greifen. Erst echte Bewegung zieht, ein Tippen untersucht.
+    const nearSun = Math.hypot((x / w - meta.ctl.lampX) * w, (y / h - meta.ctl.lampY) * h) < 3;
+    if (phase === 'down') { downAt.current = { x, y }; dragSun.current = k.inv.arm && tl === 'look' && nearSun ? 1 : 0; }
+    if (dragSun.current === 1 && phase === 'move' && downAt.current && Math.hypot(x - downAt.current.x, y - downAt.current.y) > 0.8) dragSun.current = 2;
+    if (dragSun.current === 2) {
+      const sx = x / w, sy = y / h;
+      if (phase === 'move') { const now = performance.now(); if (now - lastPaint.current > 60) { lastPaint.current = now; sim.sendCmd({ type: 'sun', x: sx, y: sy, quiet: true }); } }
+      if (phase === 'up') { dragSun.current = 0; sim.sendCmd({ type: 'sun', x: sx, y: sy }, true); }
+      return;
+    }
+    if (phase === 'up') dragSun.current = 0;
     if (tl === 'look' && phase === 'up') {
       S.cellInfo.value = { x: cx, y: cy, c: cy * w + cx };
       S.selectedSpecies.value = -1;
       sfx('click');
-      return;
-    }
-    if (tl === 'sun') {
-      if (!k.inv.arm) { if (phase === 'down') S.toast('Die Kit-Lampe steht fest. Ein Lampenarm macht sie beweglich.', 'info'); return; }
-      const sx = x / w, sy = y / h;
-      if (phase === 'down') dragSun.current = Math.hypot((sx - meta.ctl.lampX) * w, (sy - meta.ctl.lampY) * h) < 12 || true;
-      if (dragSun.current && (phase === 'down' || phase === 'move')) { const now = performance.now(); if (now - lastPaint.current > 60) { lastPaint.current = now; sim.sendCmd({ type: 'sun', x: sx, y: sy, quiet: true }); } }
-      if (phase === 'up') { dragSun.current = false; sim.sendCmd({ type: 'sun', x: sx, y: sy }, true); }
       return;
     }
     if (phase === 'hover') return;
@@ -481,7 +743,7 @@ export function GlassView() {
     if (tl === 'net' && phase === 'up') { sim.sendCmd({ type: 'net', x, y, r: 3 }, true); sfx('place'); return; }
     if (tl === 'inoc' && phase === 'up') {
       const sel = k.flags.inoc as string | undefined;
-      if (!sel) { S.toast('Wähle zuerst rechts, was du einsetzen willst.', 'info'); return; }
+      if (!sel) { S.toast('Wähle zuerst unten, was du einsetzen willst.', 'info'); return; }
       if (sel === 'starter' && k.inv.starter) { sim.sendCmd({ type: 'inoculate', traits: { ...{ role: 0, land: 0, k: 1, topt: 20, sig: 6, z: 0.1, mob: 0.2, def: 0, aff: 0.3, dry: 0, hue: 120, brain: 0, social: 0 } }, x, y, name: 'Urflöckchen' }, true); S.patchCareer(z => { z.inv.starter--; z.flags.inoc = ''; }); }
       else if (sel === 'tuempel' && k.inv.tuempel) { sim.sendCmd({ type: 'tuempel', x, y }, true); S.patchCareer(z => { z.inv.tuempel--; z.flags.inoc = ''; }); }
       else if (sel.startsWith('f')) {
@@ -495,55 +757,39 @@ export function GlassView() {
     }
   };
 
-  const sel = S.selectedSpecies.value;
-  const rightContent = tl !== 'look' ? <ToolSheet /> : sel >= 0 ? <SpeciesDetail id={sel} /> : S.cellInfo.value ? <CellDetail /> : <ContestCard />;
-  const views = VIEWS;
+  const wrapStyle = phone
+    ? `width:${gw}px;height:${gh}px;transform:translate(-50%,-50%) rotate(90deg)`
+    : `width:${gw}px;height:${gh}px;transform:translate(-50%,-50%)`;
   return (
-    <div class="gv">
+    <div class={`gv sheet-${sheet.value || 'none'}`}>
       <TopBar />
-      <div class="gv-main">
-        <div class="panel left"><BiomeCard /><SpeciesCard /><AirCard /></div>
-        <div class="stage">
-          <div class="mapwrap" style={S.locked.value ? 'filter:grayscale(.6)' : ''}>
-            <MapCanvas onPointer={(x, y, ph) => { if (ph === 'hover' || ph === 'move') hoverCell.value = { x: Math.floor(x), y: Math.floor(y) }; onPointer(x, y, ph); }} onLeave={() => { hoverCell.value = null; }} showSunHandle={tl === 'sun'} showWind={tl === 'wind' || (S.overlay.value === 'rain' && know.rain())} brush={T?.brush ?? 0} />
-            <span class="hud-corner tl" /><span class="hud-corner tr" /><span class="hud-corner bl" /><span class="hud-corner br" />
-            <StatusChips />
-            <Legend />
-            <Readout />
+      <TutorialWatch />
+      <CardPause />
+      <main class="gv-main">
+        <aside class="gv-side left" aria-label="Messwerte"><WorldState /><Detail /></aside>
+        <section class="gv-center">
+          <AlertLine />
+          <div class="stage" ref={stageRef}>
+            {gw > 0 && <div class={`mapwrap ${phone ? 'rot' : ''}`} style={wrapStyle + (S.locked.value ? ';filter:grayscale(.6)' : '')}>
+              <MapCanvas rot={phone} onPointer={onPointer} onLeave={() => { hoverCell.value = null; }}
+                showSun showSunHandle={!!c.inv.arm && tl === 'look'} showMarker={tl === 'look'}
+                showWind={S.overlay.value === 'rain' && know.rain()} brush={T?.brush ?? 0} />
+            </div>}
+            {!phone && <Probe />}
           </div>
-          <Ticker />
-          <div class="views">
-              {views.map(v => {
-                const ok = !v.needs || v.needs();
-                return <button class={`${S.overlay.value === v.id ? 'on' : ''} ${ok ? '' : 'locked'}`} onClick={() => {
-                  if (!ok) { S.toast(`Diese Ansicht braucht: ${itemById(v.item!).name}`, 'info'); return; }
-                  if (v.id === 'zone' && S.selectedSpecies.value < 0) { S.toast('Wähle zuerst eine Art aus der Liste.', 'info'); return; }
-                  S.overlay.value = v.id; sfx('click');
-                }}>{!ok && <Icon name="lens" size={14} />}{v.name}</button>;
-              })}
-            </div>
-        </div>
-        <div class="panel right">{rightContent}<MobileExtras /></div>
-      </div>
-      <div class="dock">
-        {TOOLS.map(t => {
-          const owned = !t.needs || (c.inv[t.needs] ?? 0) > 0 || (t.id === 'inoc' && (c.inv.starter || c.inv.tuempel || c.freezer.length));
-          const cnt = t.count?.();
-          return <button class={`tool ${tl === t.id ? 'on' : ''} ${owned ? '' : 'locked'} ${t.id === 'dose' && !c.flags.dosed && c.current?.id === 'schulfest' ? 'pulse' : ''}`} disabled={S.locked.value} onClick={() => selectTool(t.id)}>
-            {cnt !== undefined && owned && <span class="badge">{cnt}</span>}
-            <Icon name={t.icon} size={24} />{t.name}</button>;
-        })}
-      </div>
+          <MiniStrip />
+          <Views />
+        </section>
+        <aside class="gv-side right" aria-label="Bedingungen"><Conditions /></aside>
+      </main>
+      <nav class="gv-bar" aria-label="Eingriffe und Menü">
+        <Tools />
+        <div class="barmid"><ToolOptions /><Speed /></div>
+        <Menu />
+        <PhoneTabs />
+      </nav>
     </div>
   );
-}
-
-function MobileExtras() {
-  // Auf dem Handy liegen die linken Karten unter der Hauptkarte
-  const [mobile, setMobile] = useState(window.innerWidth <= 820);
-  useEffect(() => { const f = () => setMobile(window.innerWidth <= 820); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f); }, []);
-  if (!mobile) return null;
-  return <><SpeciesCard /><BiomeCard /><AirCard /></>;
 }
 
 export { CAUSES, TIPS_BY_CAUSE };

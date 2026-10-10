@@ -1,14 +1,14 @@
 // Situative Lernkarten (RimWorld-Prinzip): erscheinen einmal, bleiben im Heft nachschlagbar.
 export const CARDS: Record<string, { title: string; text: string }> = {
-  lamp: { title: 'Die Sonne', text: 'Die Lampe über der Schale ist die Sonne deiner Welt. Unter ihr ist es hell und warm, am Rand kalt. Licht ist Leben.' },
-  time: { title: 'Die Zeit', text: 'Oben stellst du das Tempo ein. Ein Glastag entspricht auf der Packung „einer Million Jahre“. Pause hält alles an.' },
-  contest: { title: 'Dein erster Wettbewerb', text: 'Beim Schulfest gewinnt die grünste Welt. Oben siehst du die Sterne: So würde die Jury dein Glas jetzt bewerten. Tipp: Eine Prise Nährsalz (unten im Dock) dort, wo das Meer grün ist.' },
+  lamp: { title: 'Die Sonne', text: 'Die Lampe über der Schale ist die Sonne deiner Welt. Unter ihr ist es hell und warm, am Rand kalt. Licht ist Leben. Ihre Stärke stellst du unter „Bedingungen“ ein.' },
+  time: { title: 'Die Zeit', text: 'Unten in der Mitte (am Handy oben rechts) stellst du das Tempo ein. Ein Glastag entspricht auf der Packung „einer Million Jahre“. Pause hält alles an.' },
+  contest: { title: 'Dein erster Wettbewerb', text: 'Beim Schulfest gewinnt die grünste Welt. Oben siehst du, wie die Jury dein Glas jetzt bewerten würde. Tipp: Eine Prise Nährsalz dort, wo das Meer grün ist. Du findest sie unten bei den Eingriffen (am Handy unter „Eingriff“).' },
   species: { title: 'Neue Art!', text: 'Aus Mutationen entstehen neue Arten. Du kannst sie benennen. Mit der Lupe aus der Zoohandlung erfährst du mehr über sie.' },
   o2: { title: 'Sauerstoff', text: 'Das Plankton macht Sauerstoff. Ab etwa 2 % schützt eine Ozonschicht das Land: Jetzt kann Leben an Land gehen.' },
   land: { title: 'Landgang', text: 'Die ersten Pflanzen wachsen an der Küste. Wo es regnet, wird Grasland daraus. Wo es trocken ist, bleibt Fels oder Wüste.' },
   rainshadow: { title: 'Wind und Regen', text: 'Der Wind trägt feuchte Luft vom Meer. An Bergen regnet sie ab, dahinter bleibt es trocken: Regenschatten. Mit einem Ventilator bestimmst du die Windrichtung.' },
   shop: { title: 'Zoohandlung Krause', text: 'Mit dem Preisgeld kaufst du Instrumente und Geräte. Jedes Instrument beantwortet eine Frage über dein Glas.' },
-  tools: { title: 'Werkzeuge', text: 'Unten liegen deine Werkzeuge. Werkzeug antippen, dann auf die Welt tippen. Tippen ohne Werkzeug untersucht eine Stelle.' },
+  tools: { title: 'Werkzeuge', text: 'Unten liegen deine Eingriffe (am Handy unter „Eingriff“). Werkzeug antippen, dann ins Glas tippen. Mit „Prüfen“ untersuchst du eine Stelle.' },
   overdose: { title: 'Zu viel Dünger', text: 'Das Wasser wird trüb! Bakterien blühen und zehren Sauerstoff. Weniger ist hier mehr.' },
   plague: { title: 'Seuchen', text: 'Wenn eine Art zu dicht wird, breiten sich Krankheiten aus. Das hält die Welt vielfältig: Seltene Arten haben einen Vorteil.' },
   extinct: { title: 'Ausgestorben', text: 'Eine Art ist verschwunden. Im Heft findest du einen Nachruf mit der Ursache und was geholfen hätte.' },
