@@ -6,7 +6,7 @@ import { CARDS } from '../data/cards.ts';
 import { CATEGORIES } from '../data/categories.ts';
 import { contestById } from '../data/contests.ts';
 import { TIPS_BY_CAUSE } from '../data/story.ts';
-import { know, liveStatus, omaHoliday, setSpeedIndex, showCard, fmtMoney } from '../game/career.ts';
+import { know, liveStatus, omaHoliday, setSpeedIndex, showCard, fmtMoney, nextCard, chronText } from '../game/career.ts';
 import { exportFile, saveGame, wipeSave } from '../game/save.ts';
 import { Icon, Stars } from './icons.tsx';
 import { Portrait } from './art.tsx';
@@ -15,7 +15,7 @@ import { sfx, ambient } from '../game/audio.ts';
 import { localStorageGet, localStorageSet } from './App.tsx';
 import { ACHIEVEMENTS } from '../data/achievements.ts';
 
-function close() { S.modal.value = null; }
+function close() { S.modal.value = null; setTimeout(nextCard, 250); }
 
 function Discovery({ id }: { id: number }) {
   const r = S.registry.value.find(x => x.id === id);

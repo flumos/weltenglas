@@ -44,7 +44,7 @@ float bilinGz(vec2 g){
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
-vec2 warp(vec2 g){ return g + (vec2(vnoise(g*0.85), vnoise(g*0.85 + 11.3)) - 0.5) * 1.1 + (vec2(vnoise(g*2.3+3.1), vnoise(g*2.3+7.7)) - 0.5) * 0.45; }
+vec2 warp(vec2 g){ return g + (vec2(vnoise(g*0.85), vnoise(g*0.85 + 11.3)) - 0.5) * 0.75 + (vec2(vnoise(g*2.3+3.1), vnoise(g*2.3+7.7)) - 0.5) * 0.3; }
 vec3 ramp(float t, vec3 a, vec3 b, vec3 c){ return t < 0.5 ? mix(a, b, t*2.0) : mix(b, c, t*2.0-1.0); }
 vec3 tempCol(float T){ float t = clamp((T + 6.0) / 42.0, 0.0, 1.0);
   return t < 0.33 ? mix(vec3(0.16,0.32,0.72), vec3(0.45,0.7,0.85), t/0.33) : t < 0.6 ? mix(vec3(0.45,0.7,0.85), vec3(0.96,0.86,0.55), (t-0.33)/0.27) : mix(vec3(0.96,0.86,0.55), vec3(0.85,0.27,0.18), (t-0.6)/0.4); }
@@ -100,18 +100,19 @@ void main(){
     float line = 1.0 - smoothstep(0.0, lw * 1.5, min(fr, 1.0 - fr)); ov *= 1.0 - 0.35 * line;
     ovA = 0.9;
   }
-  else if (m == 4) { float nn = clamp(b.b * 255.0 / 60.0 / 3.0, 0.0, 1.0); ov = ramp(nn, vec3(0.95,0.93,0.86), vec3(0.55,0.75,0.35), vec3(0.6,0.25,0.5)); ovA = 0.85; }
+  else if (m == 4) { float N = b.b * 255.0 / 60.0; ov = N < 2.5 ? mix(vec3(0.95,0.93,0.86), vec3(0.42,0.7,0.32), N / 2.5) : mix(vec3(0.42,0.7,0.32), vec3(0.62,0.22,0.52), clamp((N - 2.5) / 1.2, 0.0, 1.0)); ovA = 0.85; }
   else if (m == 5) { // Arten: dominanter Stamm
     vec2 gi = clamp(floor(g), vec2(0.0), grid-1.0);
     vec4 hc = texture(HUE, (gi + 0.5) / grid);
     ov = hc.a > 0.0 ? hc.rgb : vec3(0.85); ovA = 0.9;
   }
   else if (m == 6) { float L = b.a; ov = mix(vec3(0.1,0.12,0.2), vec3(1.0,0.95,0.7), L); ovA = 0.85; }
-  else if (m == 7 && hasGz > 0.5) { float gzv = (bilinGz(g) * 255.0 - 128.0) / 160.0; ov = gzv > 0.0 ? mix(vec3(0.9), vec3(0.15,0.65,0.35), clamp(gzv*2.0,0.0,1.0)) : mix(vec3(0.9), vec3(0.75,0.25,0.25), clamp(-gzv*1.5,0.0,1.0)); ovA = 0.88; }
+  else if (m == 7 && hasGz > 0.5) { float raw = bilinGz(g) * 255.0; if (raw < 0.5) { ov = vec3(0.55); } else { float v = (raw - 1.0) / 254.0; ov = v > 0.5 ? mix(vec3(0.92,0.9,0.75), vec3(0.15,0.62,0.33), (v-0.5)*2.0) : mix(vec3(0.78,0.28,0.25), vec3(0.92,0.9,0.75), v*2.0); } ovA = 0.88; }
   if (ovA > 0.0) {
     float l = dot(col, vec3(0.3,0.59,0.11));
     vec3 grey = vec3(l);
     col = mix(grey * 0.6 + 0.4, ov * (0.75 + 0.3 * shade), ovA);
+    col = mix(col, vec3(0.08, 0.1, 0.14), (1.0 - smoothstep(0.0, 0.006, abs(h - sea))) * 0.75);
   }
   // Sonnenschimmer
   vec2 dv = (q - sun) * aspect;

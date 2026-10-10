@@ -76,7 +76,7 @@ export interface DayStat {
 }
 
 export type Cmd =
-  | { type: 'sun'; x?: number; y?: number; I?: number }
+  | { type: 'sun'; x?: number; y?: number; I?: number; quiet?: boolean }
   | { type: 'photo'; hours: number }
   | { type: 'wind'; dir: number; on: boolean; str?: number }
   | { type: 'water'; delta: number }

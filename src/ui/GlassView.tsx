@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import * as S from '../game/state.ts';
 import * as sim from '../game/simClient.ts';
-import { know, liveStatus, setSpeedIndex, maxSpeedIndex, tempWord, o2Word, countWord, showCard, glassYears, fmtMoney, startContest, available } from '../game/career.ts';
+import { chronText, know, liveStatus, setSpeedIndex, maxSpeedIndex, tempWord, o2Word, countWord, showCard, glassYears, fmtMoney, startContest, available } from '../game/career.ts';
 import { CATEGORIES } from '../data/categories.ts';
 import { itemById } from '../data/items.ts';
 import { BIOMES, CAUSES } from '../sim/params.ts';
@@ -367,16 +367,16 @@ function Legend() {
   const L: Record<string, [string, string]> = {
     temp: ['−5 °C', 'linear-gradient(90deg,#2952b8,#73b3d9,#f5dc8c,#d9452e)'], rain: ['trocken', 'linear-gradient(90deg,#eee0bf,#2661bf)'],
     height: ['tief', 'linear-gradient(90deg,#1f3d75,#8cb8db,#8cb86b,#d9bf80,#f2f2f2)'], nutr: ['karg', 'linear-gradient(90deg,#f2eddb,#8cbf59,#993f80)'],
-    zone: ['schlecht', 'linear-gradient(90deg,#bf4040,#e6e6e6,#26a659)'], light: ['dunkel', 'linear-gradient(90deg,#1a1f33,#fff2b3)'],
+    zone: ['ungeeignet', 'linear-gradient(90deg,#c74740,#ebe6bf,#269e54)'], light: ['dunkel', 'linear-gradient(90deg,#1a1f33,#fff2b3)'],
   };
-  const end: Record<string, string> = { temp: '40 °C', rain: 'nass', height: 'hoch', nutr: 'überdüngt', zone: 'gut', light: 'hell' };
+  const end: Record<string, string> = { temp: '40 °C', rain: 'nass', height: 'hoch', nutr: 'überdüngt', zone: 'ideal', light: 'hell' };
   if (!L[v]) return null;
   return <div class="legend"><span>{L[v][0]}</span><span class="grad" style={`background:${L[v][1]}`} /><span>{end[v]}</span></div>;
 }
 
 function Ticker() {
   const ch = S.chronicle.value; const last = ch[ch.length - 1];
-  return <div class="ticker">{last ? `Tag ${Math.floor(last.tick / 4)} · ${know.species() || !last.text.startsWith('Neue Art') ? last.text : 'Etwas Neues regt sich im Glas.'}` : 'Das Glas ist still.'}</div>;
+  return <div class="ticker">{last ? `Tag ${Math.floor(last.tick / 4)} · ${chronText(last.text, last.kind)}` : 'Das Glas ist still.'}</div>;
 }
 
 // ---------------------------------------------------------------- Hauptansicht
@@ -386,6 +386,7 @@ export function GlassView() {
   const T = TOOLS.find(x => x.id === tl);
   const lastPaint = useRef(0);
   const dragSun = useRef(false);
+  const lastPt = useRef<{ x: number; y: number } | null>(null);
 
   // Tastatur
   useEffect(() => {
@@ -431,20 +432,23 @@ export function GlassView() {
       if (!k.inv.arm) { if (phase === 'down') S.toast('Die Kit-Lampe steht fest. Ein Lampenarm macht sie beweglich.', 'info'); return; }
       const sx = x / w, sy = y / h;
       if (phase === 'down') dragSun.current = Math.hypot((sx - meta.ctl.lampX) * w, (sy - meta.ctl.lampY) * h) < 12 || true;
-      if (dragSun.current && (phase === 'down' || phase === 'move')) { const now = performance.now(); if (now - lastPaint.current > 60) { lastPaint.current = now; sim.sendCmd({ type: 'sun', x: sx, y: sy }); } }
+      if (dragSun.current && (phase === 'down' || phase === 'move')) { const now = performance.now(); if (now - lastPaint.current > 60) { lastPaint.current = now; sim.sendCmd({ type: 'sun', x: sx, y: sy, quiet: true }); } }
       if (phase === 'up') { dragSun.current = false; sim.sendCmd({ type: 'sun', x: sx, y: sy }, true); }
       return;
     }
     if (phase === 'hover') return;
     if (tl === 'volcano' && phase === 'up') {
       if ((k.inv.vulkan ?? 0) <= 0) { S.toast('Keine Vulkansteine mehr.', 'info'); return; }
+      if (meta.hotspots.length >= 6) { S.toast('Mehr Vulkane passen nicht in diese Schale.', 'info'); return; }
       sim.sendCmd({ type: 'hotspot', x, y }, true);
       S.patchCareer(z => { z.inv.vulkan--; z.inv.vulkanUsed = (z.inv.vulkanUsed ?? 0) + 1; });
       sfx('event');
       return;
     }
     if (tl === 'terrain' && (phase === 'down' || phase === 'move')) {
-      const now = performance.now(); if (now - lastPaint.current < 140) return; lastPaint.current = now;
+      const lp = lastPt.current;
+      if (phase === 'move' && lp && Math.hypot(x - lp.x, y - lp.y) < 1.6) return;
+      lastPt.current = { x, y };
       if ((k.inv.kruemel ?? 0) <= 0) { if (phase === 'down') S.toast('Keine Erdkrümel mehr. Nachschub gibt’s bei Krause.', 'info'); return; }
       const up = k.flags.terrainUp ?? true;
       sim.sendCmd({ type: 'terrain', x, y, r: 3, delta: up ? 0.035 : -0.035 });
@@ -453,8 +457,8 @@ export function GlassView() {
     }
     if (tl === 'dose' && phase === 'up') {
       if ((k.inv.salz ?? 0) <= 0) { S.toast('Kein Nährsalz mehr.', 'info'); return; }
-      sim.sendCmd({ type: 'dose', x, y, amount: 60 }, true);
-      S.patchCareer(z => { z.inv.salz--; });
+      sim.sendCmd({ type: 'dose', x, y, amount: 90 }, true);
+      S.patchCareer(z => { z.inv.salz--; z.flags.dosed = true; });
       sfx('place');
       return;
     }
@@ -507,7 +511,7 @@ export function GlassView() {
         {TOOLS.map(t => {
           const owned = !t.needs || (c.inv[t.needs] ?? 0) > 0 || (t.id === 'inoc' && (c.inv.starter || c.inv.tuempel || c.freezer.length));
           const cnt = t.count?.();
-          return <button class={`tool ${tl === t.id ? 'on' : ''} ${owned ? '' : 'locked'}`} disabled={S.locked.value} onClick={() => selectTool(t.id)}>
+          return <button class={`tool ${tl === t.id ? 'on' : ''} ${owned ? '' : 'locked'} ${t.id === 'dose' && !c.flags.dosed && c.current?.id === 'schulfest' ? 'pulse' : ''}`} disabled={S.locked.value} onClick={() => selectTool(t.id)}>
             {cnt !== undefined && owned && <span class="badge">{cnt}</span>}
             <Icon name={t.icon} size={24} />{t.name}</button>;
         })}

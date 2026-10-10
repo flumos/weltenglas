@@ -38,6 +38,7 @@ export const ITEMS: Item[] = [
   { id: 'deckel', name: 'Lüftungsdeckel', kind: 'device', price: 20, act: 1, does: 'Deckel lüften: Zimmerluft mit 21 % Sauerstoff strömt ins Glas.', icon: 'lid' },
   { id: 'starter', name: 'Starterkultur', kind: 'consumable', price: 5, act: 1, pack: 1, does: 'Frische Urflöckchen fürs Meer – für den Neuanfang.', icon: 'seed' },
   { id: 'tuempel', name: 'Tümpelprobe', kind: 'consumable', price: 30, act: 1, pack: 1, does: 'Wilde Vielfalt: drei Arten aus einem echten Tümpel.', icon: 'pond' },
+  { id: 'labor', name: 'Laborprobe „Denker“', kind: 'consumable', price: 60, act: 3, pack: 1, does: 'Eine kluge Linie aus Dr. Brands Institut. Wird sofort dort eingesetzt, wo deine Landtiere leben.', icon: 'dna' },
   { id: 'schaleM', name: 'Schale M', kind: 'glass', price: 80, act: 1, does: 'Größere Welt: 128×80 Felder. Deine Arten ziehen mit um.', icon: 'glass' },
   { id: 'kuehlplatte', name: 'Kühlplatte', kind: 'device', price: 150, act: 2, does: 'Kühlt die ganze Welt: Eiszeiten und Gletscher.', icon: 'cold' },
   { id: 'raffer', name: 'Zeitraffer-Modul', kind: 'device', price: 70, act: 2, does: 'Tempo 30×.', icon: 'fast' },

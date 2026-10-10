@@ -31,7 +31,9 @@ export async function continueGame() {
   S.chronicle.value = b.world.chronicle.slice(-500);
   S.hist.value = b.world.hist.slice(-400);
   await sim.initWorld({ world: b.world, chronFrom: b.world.chronicle.length });
-  S.screen.value = b.career.current ? 'glass' : 'hub';
+  const cu = b.career.current;
+  if (cu && ['felsen', 'gleich', 'grandprix'].includes(cu.id)) { sim.wantStress(true); sim.runStress().then(r => { if (r) S.stress.value = r; }); }
+  S.screen.value = cu ? 'glass' : 'hub';
   return true;
 }
 

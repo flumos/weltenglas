@@ -6,18 +6,19 @@ import type { World } from '../sim/types.ts';
 import type { Career } from './state.ts';
 
 const KEY = 'weltenglas-save-v1';
-let saving = false;
+let saving = false, again = false;
 
 
 export async function saveGame() {
-  const c = S.career.value; if (!c || saving) return;
+  const c = S.career.value; if (!c) return;
+  if (saving) { again = true; return; }
   saving = true;
   try {
     const world = await sim.saveWorld();
     if (!world) return;
     await set(KEY, { v: 1, career: S.career.value, world, savedAt: Date.now() });
   } catch (e) { console.warn('Speichern fehlgeschlagen', e); }
-  finally { saving = false; }
+  finally { saving = false; if (again) { again = false; saveGame(); } }
 }
 
 export async function loadGame(): Promise<{ career: Career; world: World } | null> {

@@ -44,8 +44,11 @@ export function newCareer(name: string, hero: 'boy' | 'girl'): Career {
 }
 
 // ---------------------------------------------------------------- Lernkarten
+export const cardQueue: string[] = [];
+export function nextCard() { const id = cardQueue.shift(); if (id) S.modal.value = { kind: 'card', data: id }; }
 export function showCard(id: string) {
   const c = S.career.value; if (!c || c.cards.includes(id) || !CARDS[id]) return;
+  if (S.modal.value) { S.patchCareer(k => { k.cards.push(id); k.notes.push({ day: Math.floor(S.day.value), kind: 'card', title: CARDS[id].title, text: CARDS[id].text }); }); if (!cardQueue.includes(id)) cardQueue.push(id); return; }
   S.patchCareer(k => { k.cards.push(id); k.notes.push({ day: Math.floor(S.day.value), kind: 'card', title: CARDS[id].title, text: CARDS[id].text }); });
   S.modal.value = { kind: 'card', data: id };
 }
@@ -88,8 +91,8 @@ const STORY_EVENTS: Record<string, { day: number; id: string }> = {
 
 export function startContest(id: string) {
   const c = S.career.value!; const ct = contestById(id);
-  const fee = ct.entry * (c.currency === 'EUR' ? 1 : 1);
-  if (c.money < fee) return false;
+  let fee = price(c, ct.entry);
+  if (ct.entry > 0 && c.money < fee) { fee = Math.max(0, Math.floor(c.money)); S.toast(fee ? `Das Startgeld ist knapp: Herr Krause legt den Rest dazu.` : 'Kein Geld fürs Startgeld? Herr Krause übernimmt es diesmal.', 'info'); }
   const attempt = attemptsOf(c, id) + 1;
   const start = Math.floor(S.day.value);
   const events: { day: number; id: string }[] = [];
@@ -105,6 +108,8 @@ export function startContest(id: string) {
     }
   }
   S.patchCareer(k => { k.money -= fee; k.current = { id, start, end: start + ct.days, attempt, events, entryPaid: true }; });
+  // Sicherheitsnetz Akt 3: ohne Kultur kein Weiterkommen → Dr. Brand schickt eine Laborprobe
+  if (c.act === 3 && !(S.meta.value?.settlements.length) && !S.registry.value.some(r => r.alive && r.typus.k >= 6)) labSample().then(ok => { if (ok) S.toast('Dr. Ilse Brand schickt dir eine neue Laborprobe „Denker“.', 'big'); });
   sim.wantStress(ct.cats.some(x => x.id === 'sturdy' || x.id === 'index'));
   S.stress.value = null;
   if (ct.cats.some(x => x.id === 'sturdy' || x.id === 'index')) sim.runStress().then(r => { if (r) S.stress.value = r; });
@@ -144,15 +149,15 @@ export async function judge(): Promise<ContestResult | null> {
   const me = { name: c.name, points: Math.round(ev.points), me: true };
   const all = [...field, me].sort((a, b) => b.points - a.points);
   const place = all.findIndex(x => (x as { me?: boolean }).me) + 1;
-  const prize = place <= 3 ? ct.prizes[place - 1] : 0;
+  const prize = place <= 3 ? price(c, ct.prizes[place - 1]) : 0;
   // Jury-Brief aus echten Daten
   const tier = ev.points >= 85 ? 'great' : ev.points >= 65 ? 'good' : ev.points >= 40 ? 'ok' : 'weak';
   const lines = JURY_LINES[tier];
   const opener = lines[Math.floor(hashf(c.seed, ct.id, c.current.attempt, 'l') * lines.length)];
   const facts: string[] = [];
   for (const x of ev.cats) facts.push(`${CATEGORIES[x.id].name}: ${CATEGORIES[x.id].fmt(x.x)}.`);
-  const big = S.chronicle.value.filter(e => e.big && e.tick / 4 >= c.current!.start).slice(-1)[0];
-  if (big) facts.push(`Besonders beeindruckt hat uns: ${big.text.replace(/^Durchbruch: /, '')}`);
+  const big = S.chronicle.value.filter(e => e.big && (e.kind === 'breakthrough' || e.kind === 'species' || e.kind === 'culture') && e.tick / 4 >= c.current!.start).slice(-1)[0];
+  if (big) facts.push(`Besonders beeindruckt hat uns: ${chronText(big.text).replace(/^Durchbruch: /, '')}`);
   if (m.species >= 5 && know.species()) facts.push(`${m.species} Arten auf so kleinem Raum!`);
   const weakest = [...ev.cats].sort((a, b) => a.s - b.s)[0];
   const tip = CATEGORIES[weakest.id].tip;
@@ -202,6 +207,7 @@ export function buy(id: string) {
   S.patchCareer(k => { k.money -= price(k, it.price); k.inv[id] = (k.inv[id] ?? 0) + (it.pack ?? 1); });
   sfx('buy');
   if (id === 'kryo') showCard('freezer');
+  if (id === 'labor') { S.patchCareer(k => { k.inv.labor = 0; }); labSample(true).then(() => S.toast('Laborprobe „Denker“ eingesetzt.', 'big')); }
   saveGame();
   return true;
 }
@@ -247,14 +253,15 @@ export async function moveGlass(size: 'M' | 'L' | 'XL') {
 }
 
 /** Story-Fallback für Akt 3: Laborprobe einer denkenden Linie, abgeleitet vom stärksten Landtier */
-export async function labSample() {
+export async function labSample(force = false) {
   const reg = S.registry.value;
-  if (reg.some(r => r.alive && r.typus.k >= 6)) return false;
+  if (!force && (S.meta.value?.settlements.length ?? 0) > 0) return false;
   const base = reg.filter(r => r.alive && r.typus.land && r.typus.role > 0).sort((a, b) => b.peak - a.peak)[0];
   const t = base ? { ...base.typus } : { ...START_TRAITS, role: 1, land: 1, mob: 0.7, dry: 0.3, hue: 30, z: 0.3, k: 4 };
   Object.assign(t, { k: 6, brain: 0.8, social: 0.6, mob: Math.max(0.62, t.mob), role: 1, land: 1 });
   let x = (S.meta.value?.w ?? 96) * 0.5, y = (S.meta.value?.h ?? 64) * 0.5;
-  if (base) { const d = await sim.inspect(base.id); if (d && d.cx >= 0) { x = d.cx; y = d.cy; } }
+  if (base) { const d = await sim.inspect(base.id); if (d && d.cx >= 0) { x = d.cx; y = d.cy; t.topt = d.T; } }
+  t.sig = Math.max(t.sig, 7);
   sim.sendCmd({ type: 'inoculate', traits: t, x, y, name: 'Denker', amount: 2.0 }, true);
   return true;
 }
@@ -266,7 +273,7 @@ export function onDayGame(d: sim.DayMsg) {
   // Chronik → Meldungen, Entdeckungsritual, Nachruf
   for (const e of d.chron) {
     if (e.kind === 'breakthrough' || (e.kind === 'species' && e.big)) {
-      S.toast(e.text, 'big', { species: e.species, x: e.x, y: e.y }); sfx('discover');
+      S.toast(chronText(e.text), 'big', { species: e.species, x: e.x, y: e.y }); sfx('discover');
       if (e.text.includes('Landgang!')) showCard('land');
       if (e.text.includes('Holz')) showCard('wood');
       if (e.species !== undefined && !c.named.includes(e.species) && !S.modal.value) S.modal.value = { kind: 'discovery', data: e.species };
@@ -274,13 +281,13 @@ export function onDayGame(d: sim.DayMsg) {
       S.toast(know.species() ? e.text : 'Etwas Neues regt sich im Glas …', 'species', { species: e.species, x: e.x, y: e.y });
       if (!c.cards.includes('species') && e.species !== undefined && !S.modal.value) S.modal.value = { kind: 'discovery', data: e.species };
     } else if (e.kind === 'extinct') {
-      S.toast(e.text, 'bad', { species: e.species });
+      S.toast(chronText(e.text), 'bad', { species: e.species });
       if (e.big && e.species !== undefined && !S.modal.value) S.modal.value = { kind: 'obituary', data: e.species };
       else showCard('extinct');
     } else if (e.kind === 'o2') {
-      S.toast(know.o2() ? e.text : e.text.replace(/\d+ %/, 'genug'), e.big ? 'big' : 'info');
+      S.toast(chronText(e.text, 'o2'), e.big ? 'big' : 'info');
       if (e.text.includes('2 %')) showCard('o2');
-    } else if (e.kind === 'plague') { S.toast(e.text, 'bad', { species: e.species }); showCard('plague'); }
+    } else if (e.kind === 'plague') { S.toast(chronText(e.text), 'bad', { species: e.species }); showCard('plague'); }
     else if (e.kind === 'event' || e.kind === 'culture' || e.kind === 'biome' || e.kind === 'anagenesis') {
       S.toast(e.text, e.big ? 'big' : 'info', { x: e.x, y: e.y });
       if (e.kind === 'culture') showCard('culture');
@@ -318,6 +325,7 @@ export function fireEvent(id: string) {
     return;
   }
   if (id === 'oma') {
+    setSpeedIndex(-1);
     S.modal.value = { kind: 'oma' };
     return;
   }
@@ -339,6 +347,26 @@ export function setSpeedIndex(i: number) {
   });
 }
 export function maxSpeedIndex() { return S.has('raffer') ? 3 : 2; }
+
+// Chronik-Texte passend zum Wissen (Konzept 4.7: grob, aber nie falsch)
+const O2_WORDS: Record<string, string> = {
+  '1': 'Erste Spuren von Sauerstoff in der Luft.', '2': 'Eine Ozonschicht schützt jetzt das Land. Leben kann an Land gehen.',
+  '8': 'Die Luft ist reich genug für Holz – Pflanzen können zu Bäumen werden.', '15': 'Die Luft wird reich an Sauerstoff.', '21': 'So viel Sauerstoff wie in deinem Zimmer.',
+};
+export function chronText(text: string, kind?: string) {
+  let t = text;
+  if (!know.o2()) {
+    const m = /^Sauerstoff (\d+) %|^Die Luft im Glas enthält jetzt (\d+) %|^Sauerstoff 2 %/.exec(t);
+    if (m || kind === 'o2') { const v = (m && (m[1] || m[2])) || (/(\d+) %/.exec(t)?.[1] ?? ''); if (O2_WORDS[v]) t = O2_WORDS[v]; else t = t.replace(/\d+([,.]\d+)? %/g, 'mehr'); }
+  }
+  if (!know.species()) {
+    if (/^Neue Art:/.test(t)) t = 'Eine neue Sorte ist aufgetaucht.';
+    else if (/ausgestorben/.test(t)) t = 'Eine Sorte ist verschwunden.';
+    else if (/^Seuche bei/.test(t)) t = 'Eine Sorte ist zu dicht geworden – Krankheiten breiten sich aus.';
+    else if (/weiterentwickelt/.test(t)) t = 'Eine Sorte hat sich verändert.';
+  }
+  return t;
+}
 
 export const fmtDay = (d: number) => `Tag ${Math.floor(d)}`;
 export const glassYears = (d: number) => {

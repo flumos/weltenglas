@@ -82,7 +82,7 @@ export function applyCmd(W: World, cmd: Cmd) {
       if (cmd.x !== undefined) ctl.lampX = clamp(cmd.x, 0, 1);
       if (cmd.y !== undefined) ctl.lampY = clamp(cmd.y, 0, 1);
       if (cmd.I !== undefined) ctl.lamp = clamp(cmd.I, 0, 1);
-      registerWonder(W, ctl.lampX * W.w, ctl.lampY * W.h, 0.3, 'Sonne');
+      if (!cmd.quiet) registerWonder(W, ctl.lampX * W.w, ctl.lampY * W.h, 0.3, 'Sonne');
       break;
     }
     case 'photo': ctl.photo = clamp(cmd.hours, 6, 18); break;
