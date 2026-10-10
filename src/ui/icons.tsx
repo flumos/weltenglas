@@ -46,6 +46,7 @@ const P: Record<string, string> = {
   warn: 'M12 3l10 18H2zM12 10v4M12 17h.01',
   check: 'M5 12l5 5 9-10',
   plus: 'M12 5v14M5 12h14', minus: 'M5 12h14',
+  bars: 'M4 19V9M10 19V5M16 19v-7M22 19H2', sliders: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M16 4v4M10 10v4M18 16v4', menu: 'M4 7h16M4 12h16M4 17h16',
   eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
   download: 'M12 4v11M7 10l5 5 5-5M4 20h16', upload: 'M12 20V9M7 14l5-5 5 5M4 4h16',
   sparkle: 'M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',

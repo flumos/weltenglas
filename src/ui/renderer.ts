@@ -1,19 +1,19 @@
 // Geländekarte im Fragment-Shader (Konzept 6.5): weiche Küsten, Biomfarben überblendet,
 // Hillshading, Meerestiefe, Ansichten tauschen nur die Farbfunktion. WebGL2, Fallback WebGL1-frei.
-// Neon-Palette je Biom (Reihenfolge wie BIOMES): warm = Pink/Magenta, kalt = Blau/Violett, Leben = Mint/Grün
+// Biomfarben (Reihenfolge wie BIOMES) = Legendenfarben; der Shader dunkelt sie für die Karte stark ab
 export const NEON_BIOMES: [number, number, number][] = [
-  [10, 18, 52],    // Tiefsee
-  [22, 56, 112],   // Flachmeer
-  [30, 200, 210],  // Riff/Algenwiese
-  [205, 225, 255], // Eis
-  [104, 92, 150],  // Fels
-  [255, 110, 150], // Wüste
-  [205, 125, 220], // Steppe
-  [70, 235, 160],  // Grasland
-  [30, 185, 125],  // Wald
-  [20, 150, 110],  // Regenwald
-  [40, 135, 165],  // Nadelwald
-  [140, 160, 215], // Tundra
+  [10, 42, 82],    // Tiefsee
+  [19, 102, 160],  // Flachmeer
+  [25, 211, 192],  // Riff/Algenwiese
+  [214, 246, 255], // Eis
+  [107, 115, 132], // Fels
+  [232, 194, 94],  // Wüste
+  [184, 166, 72],  // Steppe
+  [111, 224, 122], // Grasland
+  [35, 160, 90],   // Wald
+  [15, 191, 120],  // Regenwald
+  [47, 125, 108],  // Nadelwald
+  [143, 174, 158], // Tundra
 ];
 import { SNAP_FIELDS } from '../sim/sim.ts';
 import type { Snap } from '../game/simClient.ts';
@@ -64,93 +64,80 @@ vec3 tempCol(float T){ float t = clamp((T + 6.0) / 42.0, 0.0, 1.0);
   return t < 0.33 ? mix(vec3(0.16,0.32,0.72), vec3(0.45,0.7,0.85), t/0.33) : t < 0.6 ? mix(vec3(0.45,0.7,0.85), vec3(0.96,0.86,0.55), (t-0.33)/0.27) : mix(vec3(0.96,0.86,0.55), vec3(0.85,0.27,0.18), (t-0.6)/0.4); }
 
 void main(){
-  // Schalenform: abgerundetes Rechteck mit Rand
+  // Ruhige Messkarte: gedämpfte Biomfarben, Höhenstufen statt Relief, feine Küste, Punktraster je 4 Felder
   vec2 q = uv;
   vec2 g0 = q * grid;
   vec2 g = warp(g0);
   float h = hAt(g);
-  float land = smoothstep(sea - 0.0025, sea + 0.0025, h);
+  float land = smoothstep(sea - 0.002, sea + 0.002, h);
   float depth = max(0.0, sea - h);
+  float elev = max(0.0, h - sea);
   float prod; vec3 bc = bilinBiome(g, prod);
-  float prodN = prod;
   vec4 b = bilinB(g);
   float T = b.r * 255.0 / 4.0 - 20.0;
-  // Hillshading (Licht von Nordwest)
+  const vec3 BG = vec3(0.024, 0.043, 0.078);
+  vec3 dim = BG + (bc - BG) * 0.42;
+  // Hangneigung nur als Hauch
   float e = 0.75;
   float hx = hAt(g + vec2(e, 0.0)) - hAt(g - vec2(e, 0.0));
   float hy = hAt(g + vec2(0.0, e)) - hAt(g - vec2(0.0, e));
-  vec3 n = normalize(vec3(-hx * 22.0, -hy * 22.0, 1.0));
-  float shade = clamp(dot(n, normalize(vec3(-0.6, -0.7, 0.75))), 0.0, 1.0);
-  // Meer: fast schwarzes Tiefblau, Plankton leuchtet biolumineszent
-  vec3 shelf = vec3(0.04, 0.13, 0.30), deep = vec3(0.012, 0.02, 0.07);
-  vec3 seaC = mix(shelf, deep, smoothstep(0.0, 0.17, depth));
-  float pl = clamp(prod * 3.0, 0.0, 1.0);
-  seaC += vec3(0.05, 0.55, 0.65) * pl * 0.55 * (1.0 - 0.5 * smoothstep(0.03, 0.14, depth));
-  seaC += vec3(0.25, 0.12, 0.55) * clamp(prod * 2.0, 0.0, 0.6) * smoothstep(0.03, 0.14, depth) * 0.6;
-  if (T < -1.0) seaC = mix(seaC, vec3(0.62, 0.78, 1.0), smoothstep(-1.0, -3.0, T) * 0.8);
-  // Plankton-Funkeln
-  float sp = hash(floor(g * 3.0) + floor(time * 0.7));
-  seaC += vec3(0.3, 1.0, 0.95) * step(0.982, sp) * pl * 0.9;
-  // Land: Biom-Neonfarben, dunkel schattiert, leuchtet von innen
-  vec3 landC = bc * (0.28 + 0.72 * shade) * (0.9 + 0.16 * vnoise(g0 * 4.0));
-  float elev = max(0.0, h - sea);
-  landC = mix(landC, vec3(0.78, 0.86, 1.0), smoothstep(0.38, 0.5, elev) * smoothstep(4.0, -2.0, T));
-  // Höhenlinien in Violett (Labor-Karte)
-  float cl = h * 26.0; float cf = fract(cl); float cw = max(fwidth(cl), 1e-4);
-  float cline = (1.0 - smoothstep(0.0, cw * 1.2, min(cf, 1.0 - cf))) * land * smoothstep(0.004, 0.03, elev);
-  landC += vec3(0.55, 0.38, 1.0) * cline * 0.28;
+  float slope = clamp((-hx - hy) * 4.0, -0.06, 0.06);
+  // Meer: dunkel, nach Tiefe gestuft, Plankton färbt das Flachwasser leicht
+  float dstep = floor(depth / 0.035);
+  vec3 seaC = dim * (0.82 - 0.08 * min(dstep, 4.0));
+  seaC += vec3(0.02, 0.10, 0.10) * clamp(prod * 3.0, 0.0, 1.0) * (1.0 - smoothstep(0.03, 0.14, depth));
+  if (T < -1.0) seaC = mix(seaC, BG + (vec3(0.84, 0.96, 1.0) - BG) * 0.42, smoothstep(-1.0, -3.0, T) * 0.85);
+  // Land: Höhenstufen
+  float lstep = floor(elev / 0.035);
+  vec3 landC = dim * (min(1.25, 0.92 + lstep * 0.045) + slope);
   vec3 col = mix(seaC, landC, land);
-  // Küste: Neon-Cyan-Linie mit Schein ins Wasser
+  // Höhenlinien: an Land zart, im Meer kaum sichtbar
+  float cl = (h - sea) / 0.035; float cf = fract(cl); float cw = max(fwidth(cl), 1e-4);
+  float cline = 1.0 - smoothstep(0.0, cw * 1.1, min(cf, 1.0 - cf));
+  col = mix(col, vec3(0.67, 0.86, 0.94), cline * (land * 0.08 + (1.0 - land) * 0.04) * smoothstep(0.004, 0.02, abs(h - sea)));
+  // Küste: dünne Cyan-Linie
   float dc = abs(h - sea);
-  float coastCore = 1.0 - smoothstep(0.0, 0.0045, dc);
-  float coastGlow = (1.0 - smoothstep(0.0, 0.03, dc)) * (1.0 - land);
-  col += vec3(0.18, 0.9, 1.0) * (coastCore * 0.85 + coastGlow * 0.22);
-  // Messraster
-  vec2 gr = abs(fract(g0 / 8.0 + 0.5) - 0.5) * 8.0; float gw = fwidth(g0.x);
-  float grid1 = (1.0 - smoothstep(0.0, gw * 1.2, min(gr.x, gr.y)));
-  col += vec3(0.35, 0.3, 0.9) * grid1 * 0.06;
+  float coast = 1.0 - smoothstep(0.0, 0.004, dc);
+  col = mix(col, vec3(0.18, 0.95, 1.0), coast * 0.6);
 
-  // Ansichten (Falschfarben im Neon-Spektrum)
+  // Ansichten: gestufte, gedämpfte Falschfarben
   vec3 ov = col; float ovA = 0.0;
   int m = int(mode + 0.5);
-  vec3 C0 = vec3(0.12,0.2,0.85), C1 = vec3(0.18,0.9,1.0), C2 = vec3(0.62,0.48,1.0), C3 = vec3(1.0,0.31,0.85), C4 = vec3(1.0,0.48,0.36);
-  if (m == 1) { float t = clamp((T + 6.0) / 42.0, 0.0, 1.0);
-    ov = t < 0.25 ? mix(C0, C1, t/0.25) : t < 0.5 ? mix(C1, C2, (t-0.25)/0.25) : t < 0.75 ? mix(C2, C3, (t-0.5)/0.25) : mix(C3, C4, (t-0.75)/0.25); ovA = 0.85; }
-  else if (m == 2) { float w = b.g; ov = land > 0.5 ? ramp(w, vec3(0.16,0.08,0.25), vec3(0.42,0.25,0.82), C1) : vec3(0.05,0.08,0.22); ovA = 0.88; }
+  if (m == 1) { float t = floor(clamp((T + 5.0) / 40.0, 0.0, 1.0) * 10.0 + 0.5) / 10.0;
+    vec3 c0 = vec3(0.08,0.16,0.55), c1 = vec3(0.12,0.59,1.0), c2 = vec3(0.16,0.9,0.86), c3 = vec3(0.94,0.86,0.35), c4 = vec3(1.0,0.31,0.78);
+    ov = t < 0.25 ? mix(c0, c1, t/0.25) : t < 0.5 ? mix(c1, c2, (t-0.25)/0.25) : t < 0.75 ? mix(c2, c3, (t-0.5)/0.25) : mix(c3, c4, (t-0.75)/0.25); ovA = 1.0; }
+  else if (m == 2) { float w = floor(b.g * 8.0 + 0.5) / 8.0; ov = land > 0.5 ? ramp(w, vec3(0.45,0.3,0.16), vec3(0.3,0.5,0.6), vec3(0.23,0.66,1.0)) : vec3(0.06,0.1,0.18); ovA = 1.0; }
   else if (m == 3) {
     float hh = h - sea;
-    ov = hh < 0.0 ? mix(vec3(0.09,0.23,0.55), vec3(0.02,0.04,0.14), clamp(-hh/0.25,0.0,1.0)) : (hh < 0.3 ? mix(C1, C2, hh/0.3) : mix(C2, mix(C3, vec3(1.0), 0.0), clamp((hh-0.3)/0.3,0.0,1.0)));
-    if (hh > 0.5) ov = mix(ov, vec3(1.0), clamp((hh-0.5)/0.15, 0.0, 1.0));
-    float fr = fract(h * 20.0); float lw = max(fwidth(h * 20.0), 1e-4);
-    float line = 1.0 - smoothstep(0.0, lw * 1.5, min(fr, 1.0 - fr)); ov = mix(ov, vec3(1.0), line * 0.35);
-    ovA = 0.9;
+    ov = hh < 0.0 ? mix(vec3(0.1,0.22,0.4), vec3(0.03,0.06,0.14), clamp(-hh/0.25,0.0,1.0)) : mix(vec3(0.12,0.45,0.55), vec3(0.75,0.95,1.0), clamp(floor(hh / 0.05) * 0.05 / 0.5, 0.0, 1.0));
+    ov = mix(ov, vec3(0.75, 0.95, 1.0), cline * (0.45 * land + 0.18 * (1.0 - land)));
+    ovA = 1.0;
   }
-  else if (m == 4) { float N = b.b * 255.0 / 60.0; ov = N < 2.5 ? mix(vec3(0.08,0.06,0.16), vec3(0.24,1.0,0.69), N / 2.5) : mix(vec3(0.24,1.0,0.69), C3, clamp((N - 2.5) / 1.2, 0.0, 1.0)); ovA = 0.85; }
+  else if (m == 4) { float N = b.b * 255.0 / 60.0; float t = floor(clamp(N / 3.0, 0.0, 1.0) * 8.0 + 0.5) / 8.0;
+    ov = t < 0.83 ? ramp(t / 0.83, vec3(0.04,0.08,0.12), vec3(0.12,0.35,0.27), vec3(0.36,1.0,0.66)) : mix(vec3(0.36,1.0,0.66), vec3(1.0,0.69,0.23), (t - 0.83) / 0.17); ovA = 1.0; }
   else if (m == 5) {
     vec2 gi = clamp(floor(g), vec2(0.0), grid-1.0);
     vec4 hc = texture(HUE, (gi + 0.5) / grid);
-    ov = hc.a > 0.0 ? hc.rgb : vec3(0.06,0.05,0.12); ovA = 0.92;
+    ov = hc.a > 0.0 ? hc.rgb : vec3(0.06,0.08,0.12); ovA = 1.0;
   }
-  else if (m == 6) { float L = b.a; ov = ramp(L, vec3(0.02,0.02,0.05), vec3(0.48,0.36,1.0), vec3(0.91,0.98,1.0)); ovA = 0.88; }
-  else if (m == 7 && hasGz > 0.5) { float raw = bilinGz(g) * 255.0; if (raw < 0.5) { ov = vec3(0.1,0.09,0.16); } else { float v = (raw - 1.0) / 254.0; ov = v > 0.5 ? mix(vec3(0.1,0.08,0.19), vec3(0.24,1.0,0.69), (v-0.5)*2.0) : mix(vec3(1.0,0.3,0.48), vec3(0.1,0.08,0.19), v*2.0); } ovA = 0.9; }
+  else if (m == 6) { float L = floor(b.a * 8.0 + 0.5) / 8.0; ov = ramp(L, vec3(0.02,0.03,0.06), vec3(0.4,0.36,0.7), vec3(1.0,0.86,0.5)); ovA = 1.0; }
+  else if (m == 7 && hasGz > 0.5) { float raw = bilinGz(g) * 255.0; if (raw < 0.5) { ov = vec3(0.08,0.09,0.12); } else { float v = (raw - 1.0) / 254.0; ov = v > 0.5 ? mix(vec3(0.1,0.12,0.16), vec3(0.36,1.0,0.66), (v-0.5)*2.0) : mix(vec3(1.0,0.3,0.43), vec3(0.1,0.12,0.16), v*2.0); } ovA = 1.0; }
   if (ovA > 0.0) {
-    float l = dot(col, vec3(0.3,0.59,0.11));
-    col = mix(vec3(l) * 0.35, ov * (0.62 + 0.45 * shade), ovA);
-    col += vec3(0.18, 0.9, 1.0) * (1.0 - smoothstep(0.0, 0.005, abs(h - sea))) * 0.6;
+    col = ov * mix(0.3, 0.5, land) + BG * 0.45;
+    col = mix(col, vec3(0.67, 0.86, 0.94), cline * land * 0.06);
+    col = mix(col, vec3(0.18, 0.95, 1.0), coast * 0.55);
   }
-  // Lampenschein (kühles Weiß mit rosa Rand)
+  // Punktraster: ein Punkt je 4×4 Felder
+  vec2 gp = abs(fract(g0 / 4.0 + 0.5) - 0.5) * 4.0; float fw = max(fwidth(g0.x), 1e-4);
+  float dotv = 1.0 - smoothstep(fw * 0.4, fw * 1.1, length(gp));
+  col += vec3(0.7, 0.86, 1.0) * dotv * 0.07;
+  // Lampenschein: nur ein Hauch
   vec2 dv = (q - sun) * aspect;
-  float sg = exp(-dot(dv, dv) / 0.05);
-  col += vec3(1.0, 0.82, 0.95) * sg * 0.10 * sunI;
-  // Vignette und Glas
-  vec2 cc = (q - 0.5) * 2.0;
-  float vig = 1.0 - 0.32 * pow(length(cc * vec2(0.9, 1.0)), 2.6);
-  col *= vig;
-  float gloss = smoothstep(0.6, 0.0, length((q - vec2(0.18, 0.12)) * vec2(1.0, 1.6))) * 0.05;
-  col += vec3(0.7, 0.9, 1.0) * gloss;
-  // Glasrand-Schimmer
-  float edge = smoothstep(0.8, 1.0, max(abs(cc.x), abs(cc.y)));
-  col += mix(vec3(0.18,0.9,1.0), vec3(1.0,0.31,0.85), q.x) * edge * 0.05;
+  float sg = exp(-dot(dv, dv) / 0.06);
+  col += vec3(1.0, 0.84, 0.47) * sg * 0.06 * sunI;
+  // Randabdunklung zum Glas hin
+  vec2 cc = abs(q - 0.5) * 2.0;
+  col *= 1.0 - 0.45 * smoothstep(0.82, 1.0, cc.x) - 0.4 * smoothstep(0.78, 1.0, cc.y);
   o = vec4(col, 1.0);
 }`;
 
