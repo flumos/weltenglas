@@ -25,7 +25,7 @@ export function Hub() {
           <RoomArt act={c.act} dark={dark} />
           <button class="hotspot" style="left:9%;top:12%" onClick={go('calendar')}><Icon name="calendar" size={16} />Kalender</button>
           <button class="hotspot" style="left:33%;top:6%" onClick={() => S.modal.value = { kind: 'shelf' }}><Icon name="trophy" size={16} />Regal · {trophies.length}</button>
-          <button class="hotspot" style="left:41%;top:44%" onClick={go('glass')}><Icon name="glass" size={16} />Glas</button>
+          <button class="hotspot main" style="left:41%;top:44%" onClick={go('glass')}><Icon name="glass" size={16} />Glas</button>
           <button class="hotspot" style="left:70%;top:62%" onClick={go('notebook')}><Icon name="book" size={16} />Heft</button>
           <button class="hotspot" style="left:20%;top:62%" onClick={() => S.toast(`Im Sparschwein: ${fmtMoney(c.money)}`, 'info')}><Icon name="pig" size={16} />Sparschwein</button>
           <button class="hotspot" style="right:3%;top:40%" onClick={go('shop')}><Icon name="door" size={16} />Zur Zoohandlung</button>
@@ -48,7 +48,7 @@ export function Hub() {
             {!c.results.length && <p class="small muted" style="margin-top:6px">Noch keine. Dein erster Wettbewerb wartet.</p>}
           </div>
           <div class="quick">
-            <button onClick={go('glass')}><Icon name="glass" />Glas<span>beobachten & eingreifen</span></button>
+            <button class="main" onClick={go('glass')}><Icon name="glass" size={26} /><span class="grow" style="color:var(--text);font-size:17px;font-weight:600">Zum Glas<span class="tiny muted" style="display:block;font-weight:400;font-size:13px">beobachten & eingreifen</span></span><Icon name="right" /></button>
             <button onClick={go('shop')}><Icon name="store" />Zoohandlung<span>Instrumente & Geräte</span></button>
             <button onClick={go('notebook')}><Icon name="book" />Forschungsheft<span>Arten, Chronik, Briefe</span></button>
           </div>

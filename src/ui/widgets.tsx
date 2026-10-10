@@ -1,9 +1,8 @@
 // Kleine Bausteine: Sparkline, Wohlfühlkurve, Balken, Biom-Farben.
-import { BIOMES } from '../sim/params.ts';
 import type { Traits } from '../sim/types.ts';
-import { hslCss } from './renderer.ts';
+import { hslCss, NEON_BIOMES } from './renderer.ts';
 
-export const biomeCss = (i: number) => `rgb(${BIOMES[i].color.join(',')})`;
+export const biomeCss = (i: number) => `rgb(${NEON_BIOMES[i].join(',')})`;
 
 export function Sparkline({ data, color = 'currentColor', w = 80, h = 24 }: { data: number[]; color?: string; w?: number; h?: number }) {
   if (!data || data.length < 2) return <svg width={w} height={h} />;
@@ -33,7 +32,7 @@ export function Bar({ v, color }: { v: number; color: string }) {
   return <div class="bar"><i style={`width:${Math.max(0, Math.min(100, v * 100))}%;background:${color}`} /></div>;
 }
 
-export const speciesColor = (t: Traits) => hslCss(t.hue, 0.55, t.land ? 0.42 : 0.52);
+export const speciesColor = (t: Traits) => hslCss(t.hue, 0.9, t.land ? 0.6 : 0.66);
 
 export function roleText(t: Traits) {
   const r = t.role === 0 ? (t.land ? (t.z > 0.62 ? 'Baum' : t.z > 0.32 ? 'Busch' : 'Landpflanze') : 'Plankton') : t.role === 1 ? 'Weidegänger' : 'Räuber';

@@ -19,8 +19,8 @@ import { TitleArt } from './art.tsx';
 sim.onDay(onDayGame);
 
 function applyTheme() {
-  const t = localStorageGet('wg.theme');
-  if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  // Neon-Labor: immer dunkel (das Zimmer ist dunkel, nur das Glas leuchtet)
+  document.documentElement.dataset.theme = 'dark';
 }
 export function localStorageGet(k: string) { try { return localStorage.getItem(k); } catch { return null; } }
 export function localStorageSet(k: string, v: string) { try { localStorage.setItem(k, v); } catch { /* privat */ } }

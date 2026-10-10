@@ -1,5 +1,6 @@
 // Glas-Ansicht (Konzept 7.3): oben schauen, unten bedienen.
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { signal } from '@preact/signals';
 import * as S from '../game/state.ts';
 import * as sim from '../game/simClient.ts';
 import { chronText, know, liveStatus, setSpeedIndex, maxSpeedIndex, tempWord, o2Word, countWord, showCard, glassYears, fmtMoney, startContest, available } from '../game/career.ts';
@@ -74,7 +75,7 @@ function TopBar() {
     <div class="topbar">
       <span class="brand">Weltenglas</span>
       <button class="iconbtn" title="Zimmer" onClick={() => { setSpeedIndex(-1); saveGame(); S.screen.value = 'hub'; }}><Icon name="home" /></button>
-      <span class="pill" title={glassYears(S.day.value)}>Tag {Math.floor(S.day.value)}<span class="muted small gy" style="font-weight:500">· {glassYears(S.day.value)}</span></span>
+      <span class="pill daypill" title={glassYears(S.day.value)}>T+<b>{String(Math.floor(S.day.value)).padStart(3, '0')}</b><span class="muted small gy">· {glassYears(S.day.value)}</span></span>
       <div class="seg">
         <button class={pz ? 'on' : ''} onClick={() => setSpeedIndex(-1)} aria-label="Pause" disabled={S.locked.value}><Icon name="pause" size={16} /></button>
         {S.SPEEDS.slice(0, maxI + 1).map((s, i) => <button class={!pz && sp === i ? 'on' : ''} disabled={S.locked.value} onClick={() => { setSpeedIndex(i); prevSpeed = -1; }}>{s.label}</button>)}
@@ -199,7 +200,7 @@ function SpeciesDetail({ id }: { id: number }) {
       {!d.alive && <p class="small" style="color:var(--bad);margin-top:6px">Ausgestorben (Tag {Math.floor(d.died / 4)}) · {d.cause}</p>}
       <div class="label" style="margin:14px 0 4px">Warum wächst sie hier?</div>
       {reasons(d, micro, { temp: know.temp(), nutr: know.nutr(), rain: know.rain() }).map(r => (
-        <div class={`reason ${r.dir === 'unk' ? 'unk' : ''}`}><Icon name={r.dir === 'up' ? 'up' : r.dir === 'down' ? 'down' : r.dir === 'right' ? 'right' : 'info'} size={16} /><span>{r.text}</span></div>
+        <div class={`reason ${r.dir}`}><Icon name={r.dir === 'up' ? 'up' : r.dir === 'down' ? 'down' : r.dir === 'right' ? 'right' : 'info'} size={16} /><span>{r.text}</span></div>
       ))}
       {micro && <><div class="label" style="margin:14px 0 4px">Wohlfühlklima</div><TpcCurve t={t} T={d.T} color={speciesColor(t)} /></>}
       <div class="stat-grid" style="margin-top:12px">
@@ -365,18 +366,33 @@ function StatusChips() {
 function Legend() {
   const v = S.overlay.value;
   const L: Record<string, [string, string]> = {
-    temp: ['−5 °C', 'linear-gradient(90deg,#2952b8,#73b3d9,#f5dc8c,#d9452e)'], rain: ['trocken', 'linear-gradient(90deg,#eee0bf,#2661bf)'],
-    height: ['tief', 'linear-gradient(90deg,#1f3d75,#8cb8db,#8cb86b,#d9bf80,#f2f2f2)'], nutr: ['karg', 'linear-gradient(90deg,#f2eddb,#8cbf59,#993f80)'],
-    zone: ['ungeeignet', 'linear-gradient(90deg,#c74740,#ebe6bf,#269e54)'], light: ['dunkel', 'linear-gradient(90deg,#1a1f33,#fff2b3)'],
+    temp: ['−5 °C', 'linear-gradient(90deg,#1f33d9,#2ee6ff,#9d7bff,#ff4fd8,#ff7a5c)'], rain: ['trocken', 'linear-gradient(90deg,#2a1640,#6a3fd0,#2ee6ff)'],
+    height: ['tief', 'linear-gradient(90deg,#060a24,#173a8c,#2ee6ff,#9d7bff,#ff4fd8,#fff)'], nutr: ['karg', 'linear-gradient(90deg,#14102a,#3dffb0,#ff4fd8)'],
+    zone: ['ungeeignet', 'linear-gradient(90deg,#ff4d7a,#1a1530,#3dffb0)'], light: ['dunkel', 'linear-gradient(90deg,#06050c,#7a5cff,#e8fbff)'],
   };
   const end: Record<string, string> = { temp: '40 °C', rain: 'nass', height: 'hoch', nutr: 'überdüngt', zone: 'ideal', light: 'hell' };
   if (!L[v]) return null;
   return <div class="legend"><span>{L[v][0]}</span><span class="grad" style={`background:${L[v][1]}`} /><span>{end[v]}</span></div>;
 }
 
+// Zell-Messung unter dem Mauszeiger — nur was die Instrumente schon messen können
+const hoverCell = signal<{ x: number; y: number } | null>(null);
+function Readout() {
+  const hc = hoverCell.value; const snap = sim.snapCur; void S.day.value;
+  if (!hc || !snap) return null;
+  const { w, h, sea } = snap.meta; if (hc.x < 0 || hc.y < 0 || hc.x >= w || hc.y >= h) return null;
+  const o = (hc.y * w + hc.x) * SNAP_FIELDS, b = snap.buf;
+  const T = b[o + 4] / 4 - 20, hgt = b[o] / 255, below = hgt < sea;
+  const parts = [`${String(hc.x).padStart(3, '0')}·${String(hc.y).padStart(3, '0')}`, BIOMES[b[o + 1]].name.toUpperCase()];
+  if (know.temp()) parts.push(`${T.toFixed(1)}°C`);
+  if (know.height()) parts.push(below ? `−${((sea - hgt) * 1000).toFixed(0)}m` : `+${((hgt - sea) * 3000).toFixed(0)}m`);
+  if (know.nutr()) parts.push(`N ${(b[o + 6] / 60).toFixed(2)}`);
+  return <div class="readout"><i>◎</i> {parts.join('  |  ')}</div>;
+}
+
 function Ticker() {
   const ch = S.chronicle.value; const last = ch[ch.length - 1];
-  return <div class="ticker">{last ? `Tag ${Math.floor(last.tick / 4)} · ${chronText(last.text, last.kind)}` : 'Das Glas ist still.'}</div>;
+  return <div class="ticker">{last ? `T+${String(Math.floor(last.tick / 4)).padStart(3, '0')}  ${chronText(last.text, last.kind)}` : 'Das Glas ist still.'}</div>;
 }
 
 // ---------------------------------------------------------------- Hauptansicht
@@ -489,9 +505,11 @@ export function GlassView() {
         <div class="panel left"><BiomeCard /><SpeciesCard /><AirCard /></div>
         <div class="stage">
           <div class="mapwrap" style={S.locked.value ? 'filter:grayscale(.6)' : ''}>
-            <MapCanvas onPointer={onPointer} showSunHandle={tl === 'sun'} showWind={tl === 'wind' || (S.overlay.value === 'rain' && know.rain())} brush={T?.brush ?? 0} />
+            <MapCanvas onPointer={(x, y, ph) => { if (ph === 'hover' || ph === 'move') hoverCell.value = { x: Math.floor(x), y: Math.floor(y) }; onPointer(x, y, ph); }} onLeave={() => { hoverCell.value = null; }} showSunHandle={tl === 'sun'} showWind={tl === 'wind' || (S.overlay.value === 'rain' && know.rain())} brush={T?.brush ?? 0} />
+            <span class="hud-corner tl" /><span class="hud-corner tr" /><span class="hud-corner bl" /><span class="hud-corner br" />
             <StatusChips />
             <Legend />
+            <Readout />
           </div>
           <Ticker />
           <div class="views">
