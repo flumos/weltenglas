@@ -1,0 +1,21 @@
+// Situative Lernkarten (RimWorld-Prinzip): erscheinen einmal, bleiben im Heft nachschlagbar.
+export const CARDS: Record<string, { title: string; text: string }> = {
+  lamp: { title: 'Die Sonne', text: 'Die Lampe über der Schale ist die Sonne deiner Welt. Unter ihr ist es hell und warm, am Rand kalt. Licht ist Leben.' },
+  time: { title: 'Die Zeit', text: 'Oben stellst du das Tempo ein. Ein Glastag entspricht auf der Packung „einer Million Jahre“. Pause hält alles an.' },
+  contest: { title: 'Dein erster Wettbewerb', text: 'Beim Schulfest gewinnt die grünste Welt. Oben siehst du die Sterne: So würde die Jury dein Glas jetzt bewerten.' },
+  species: { title: 'Neue Art!', text: 'Aus Mutationen entstehen neue Arten. Du kannst sie benennen. Mit der Lupe aus der Zoohandlung erfährst du mehr über sie.' },
+  o2: { title: 'Sauerstoff', text: 'Das Plankton macht Sauerstoff. Ab etwa 2 % schützt eine Ozonschicht das Land: Jetzt kann Leben an Land gehen.' },
+  land: { title: 'Landgang', text: 'Die ersten Pflanzen wachsen an der Küste. Wo es regnet, wird Grasland daraus. Wo es trocken ist, bleibt Fels oder Wüste.' },
+  rainshadow: { title: 'Wind und Regen', text: 'Der Wind trägt feuchte Luft vom Meer. An Bergen regnet sie ab, dahinter bleibt es trocken: Regenschatten. Mit einem Ventilator bestimmst du die Windrichtung.' },
+  shop: { title: 'Zoohandlung Krause', text: 'Mit dem Preisgeld kaufst du Instrumente und Geräte. Jedes Instrument beantwortet eine Frage über dein Glas.' },
+  tools: { title: 'Werkzeuge', text: 'Unten liegen deine Werkzeuge. Werkzeug antippen, dann auf die Welt tippen. Tippen ohne Werkzeug untersucht eine Stelle.' },
+  overdose: { title: 'Zu viel Dünger', text: 'Das Wasser wird trüb! Bakterien blühen und zehren Sauerstoff. Weniger ist hier mehr.' },
+  plague: { title: 'Seuchen', text: 'Wenn eine Art zu dicht wird, breiten sich Krankheiten aus. Das hält die Welt vielfältig: Seltene Arten haben einen Vorteil.' },
+  extinct: { title: 'Ausgestorben', text: 'Eine Art ist verschwunden. Im Heft findest du einen Nachruf mit der Ursache und was geholfen hätte.' },
+  wood: { title: 'Holz und Wald', text: 'Ab 8 % Sauerstoff können Pflanzen Holz bilden. Wo es feucht ist, wachsen Wälder. Wälder verdunsten Wasser und machen ihren Regen mit.' },
+  oxycat: { title: 'Die Sauerstoffkatastrophe', text: 'Für die ersten Einzeller ist viel Sauerstoff Gift. Wer überleben will, muss Sauerstoff atmen lernen: komplexe Zellen der Stufe 2.' },
+  freezer: { title: 'Kryo-Proben', text: 'Mit Pipette und Kryo-Box frierst du eine Art ein. So geht sie nie ganz verloren und du kannst sie später wieder einsetzen.' },
+  lose: { title: 'Verlieren ist okay', text: 'Jeder bekommt eine Schleife und einen Tipp. Einen Wettbewerb kannst du in der nächsten Saison wiederholen.' },
+  culture: { title: 'Sie leben', text: 'Eine Kultur ist entstanden. Alles, was du in ihrem Sichtfeld tust, halten sie für ein Wunder: Manna, Sonne, Strafe. Sei gütig.' },
+  seasons: { title: 'Jahreszeiten', text: 'Im Keller wandert die Sonne über das Jahr. Die Welt wird mal wärmer, mal kälter. Arten müssen damit klarkommen.' },
+};

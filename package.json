@@ -1,0 +1,26 @@
+{
+  "name": "weltenglas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "bot": "node tools/bot.ts"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^24.19.2",
+    "playwright": "1.58",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.11.3",
+    "idb-keyval": "^6.3.0",
+    "preact": "^10.29.8"
+  }
+}
