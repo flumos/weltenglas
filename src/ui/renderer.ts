@@ -123,7 +123,7 @@ void main(){
   else if (m == 6) { float L = floor(b.a * 8.0 + 0.5) / 8.0; ov = ramp(L, vec3(0.02,0.03,0.06), vec3(0.4,0.36,0.7), vec3(1.0,0.86,0.5)); ovA = 1.0; }
   else if (m == 7 && hasGz > 0.5) { float raw = bilinGz(g) * 255.0; if (raw < 0.5) { ov = vec3(0.08,0.09,0.12); } else { float v = (raw - 1.0) / 254.0; ov = v > 0.5 ? mix(vec3(0.1,0.12,0.16), vec3(0.36,1.0,0.66), (v-0.5)*2.0) : mix(vec3(1.0,0.3,0.43), vec3(0.1,0.12,0.16), v*2.0); } ovA = 1.0; }
   if (ovA > 0.0) {
-    col = ov * mix(0.3, 0.5, land) + BG * 0.45;
+    col = ov * ((m == 5 || m == 7) ? mix(0.55, 0.7, land) : mix(0.3, 0.5, land)) + BG * 0.4;
     col = mix(col, vec3(0.67, 0.86, 0.94), cline * land * 0.06);
     col = mix(col, vec3(0.18, 0.95, 1.0), coast * 0.55);
   }

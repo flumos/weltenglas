@@ -157,7 +157,7 @@ export async function judge(): Promise<ContestResult | null> {
   const facts: string[] = [];
   for (const x of ev.cats) facts.push(`${CATEGORIES[x.id].name}: ${CATEGORIES[x.id].fmt(x.x)}.`);
   const big = S.chronicle.value.filter(e => e.big && (e.kind === 'breakthrough' || e.kind === 'species' || e.kind === 'culture') && e.tick / 4 >= c.current!.start).slice(-1)[0];
-  if (big) facts.push(`Besonders beeindruckt hat uns: ${chronText(big.text).replace(/^Durchbruch: /, '')}`);
+  if (big) { const t = chronText(big.text).replace(/^Durchbruch: /, ''); facts.push(`Besonders beeindruckt hat uns: ${t}${/[.!?]$/.test(t) ? '' : '.'}`); }
   if (m.species >= 5 && know.species()) facts.push(`${m.species} Arten auf so kleinem Raum!`);
   const weakest = [...ev.cats].sort((a, b) => a.s - b.s)[0];
   const tip = CATEGORIES[weakest.id].tip;

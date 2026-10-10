@@ -110,6 +110,9 @@ function countingMetrics() { const st = liveStatus(); return new Set(st ? st.ct.
 function ContestBox() {
   const c = S.career.value!;
   const st = liveStatus();
+  if (!st && (c.flags.tutorial === 1 || c.flags.tutorial === 2)) {
+    return <div class="gv-contest none soon"><div class="what"><b>Schulfest</b><span>Beginnt, sobald das erste Leben wächst.</span></div></div>;
+  }
   if (!st) {
     const av = available(c).filter(x => !c.done.includes(x.id) || x.finale);
     return (
@@ -129,7 +132,7 @@ function ContestBox() {
     <button class="gv-contest" onClick={() => S.modal.value = { kind: 'contest' }} title="Wertung im Detail">
       <div class="when"><b class="mono">{days}</b><span>{days === 1 ? 'Tag bis Abgabe' : 'Tage bis Abgabe'}</span></div>
       <div class="what"><b>{st.ct.name} · {st.ct.cats.map(x => CATEGORIES[x.id].name).join(' + ')}</b>
-        <span>Zählt: {st.ct.cats.map(x => CATEGORIES[x.id].desc.split(/[.:]/)[0]).join(' · ')}</span></div>
+        <span>Jetzt: {st.cats.map(x => { const cat = CATEGORIES[x.id]; return cat.needs && !S.has(cat.needs) ? `${cat.short} · ${itemById(cat.needs).name} fehlt` : cat.fmt(x.x); }).join(' · ')}</span></div>
       <div class="score">
         {rank && leader ? <div class="vs">
           <div class="vrow"><span>{leader.name.split(' ')[0]}</span><i style={`--w:${Math.min(100, leader.points)}%;--c:var(--muted)`} /><b>{Math.round(leader.points)}</b></div>
@@ -329,8 +332,8 @@ function SpeciesDetail({ id }: { id: number }) {
       {micro && <><div class="cap sub">Wohlfühlklima</div><TpcCurve t={t} T={d.T} color={speciesColor(t)} /></>}
       <div class="kvgrid">
         <div class="kv"><span>Bestand</span><b class="mono">{d.total.toFixed(0)}</b></div>
-        <div class="kv"><span>Fläche</span><b class="mono">{(d.area * 100).toFixed(1)} %</b></div>
-        {micro && <><div class="kv"><span>Größe</span><b class="mono">{t.z.toFixed(2)}</b></div><div class="kv"><span>Beweglichkeit</span><b class="mono">{t.mob.toFixed(2)}</b></div></>}
+        <div class="kv"><span>Fläche</span><b class="mono">{de(d.area * 100, 1)} %</b></div>
+        {micro && <><div class="kv"><span>Größe</span><b class="mono">{de(t.z, 2)}</b></div><div class="kv"><span>Beweglichkeit</span><b class="mono">{de(t.mob, 2)}</b></div></>}
       </div>
       {know.data() && d.hist.length > 2 && <div><div class="cap sub">Verlauf</div><Sparkline data={d.hist} w={240} h={36} color={speciesColor(t)} /></div>}
       <div class="row wrap">
@@ -354,13 +357,14 @@ function cellData(x: number, y: number) {
   return { biome: b[o + 1], T: b[o + 4] / 4 - 20, soil: b[o + 5] / 255, N: b[o + 6] / 60, L: b[o + 9] / 255, hgt, sea: hgt < sea, seaLvl: sea,
     strains: [b[o + 7], b[o + 8]].filter(v => v !== 255).map(v => snap.meta.strains[v]).filter(Boolean) };
 }
+const de = (v: number, n: number) => v.toFixed(n).replace('.', ',');
 function cellRows(d: NonNullable<ReturnType<typeof cellData>>) {
   const r: [string, string][] = [];
   r.push([d.sea ? 'Tiefe' : 'Höhe', know.height() ? (d.sea ? `${((d.seaLvl - d.hgt) * 1000).toFixed(0)} m` : `${((d.hgt - d.seaLvl) * 3000).toFixed(0)} m`) : d.sea ? 'Meer' : 'Land']);
-  r.push(['Temperatur', know.temp() ? `${d.T.toFixed(1)} °C` : tempWord(d.T)]);
+  r.push(['Temperatur', know.temp() ? `${de(d.T, 1)} °C` : tempWord(d.T)]);
   r.push(['Licht', d.L > 0.6 ? 'hell' : d.L > 0.3 ? 'mittel' : d.L > 0.1 ? 'dämmrig' : 'dunkel']);
   if (!d.sea) r.push(['Bodenfeuchte', know.rain() ? `${Math.round(d.soil * 100)} %` : d.soil > 0.6 ? 'nass' : d.soil > 0.3 ? 'feucht' : 'trocken']);
-  if (know.nutr()) r.push(['Nährstoffe', d.N.toFixed(2) + (d.N > 2.5 ? ' · zu viel' : '')]);
+  if (know.nutr()) r.push(['Nährstoffe', de(d.N, 2) + (d.N > 2.5 ? ' · zu viel' : '')]);
   return r;
 }
 function CellDetail() {
@@ -462,7 +466,7 @@ function MiniStrip() {
   ];
   return (
     <div class="ministrip">
-      {items.map(([id, n, v, c]) => <button class={`mini ${counts.has(id) ? 'count' : ''}`} style={`--c:${c}`} onClick={() => { sheet.value = 'werte'; }}><span>{n}</span><b>{v}</b></button>)}
+      {items.map(([id, n, v, c]) => <button class={`mini ${counts.has(id) ? 'count' : ''}`} style={`--c:${c}`} onClick={() => { sheet.value = 'werte'; }}><span>{n}</span><b class={/\d/.test(v) ? '' : 'word'}>{v}</b></button>)}
     </div>
   );
 }
@@ -615,6 +619,16 @@ function PhoneTabs() {
 }
 
 // ---------------------------------------------------------------- Hauptansicht
+/** Lernkarten halten die Zeit an, damit nichts verpasst wird */
+function CardPause() {
+  const isCard = S.modal.value?.kind === 'card';
+  const resume = useRef(-2);
+  useEffect(() => {
+    if (isCard && !S.paused.value && resume.current === -2) { resume.current = S.speed.value; setSpeedIndex(-1); }
+    if (!isCard && resume.current !== -2) { const r = resume.current; resume.current = -2; if (S.paused.value && !S.modal.value) setSpeedIndex(r); }
+  }, [isCard]);
+  return null;
+}
 function TutorialWatch() {
   const c = S.career.value!; const d = S.day.value;
   useEffect(() => {
@@ -644,7 +658,7 @@ export function GlassView() {
   if (phone) { const shortS = Math.min(box.w - 4, (box.h - 4) / aspect); gh = Math.max(0, Math.floor(shortS)); gw = Math.floor(gh * aspect); }
   else { gw = Math.max(0, Math.floor(Math.min(box.w - 24, (box.h - 24) * aspect))); gh = Math.floor(gw / aspect); }
 
-  useEffect(() => () => { sheet.value = ''; hoverCell.value = null; linking.value = []; }, []);
+  useEffect(() => () => { sheet.value = ''; hoverCell.value = null; linking.value = []; S.cellInfo.value = null; }, []);
 
   // Tastatur
   useEffect(() => {
@@ -750,6 +764,7 @@ export function GlassView() {
     <div class={`gv sheet-${sheet.value || 'none'}`}>
       <TopBar />
       <TutorialWatch />
+      <CardPause />
       <main class="gv-main">
         <aside class="gv-side left" aria-label="Messwerte"><WorldState /><Detail /></aside>
         <section class="gv-center">
