@@ -88,7 +88,7 @@ export type Cmd =
   | { type: 'thermo'; on: boolean; set: number; max: number }
   | { type: 'cool'; delta: number }
   | { type: 'net'; x: number; y: number; r: number }
-  | { type: 'inoculate'; traits: Traits; x: number; y: number; name?: string }
+  | { type: 'inoculate'; traits: Traits; x: number; y: number; name?: string; amount?: number }
   | { type: 'rename'; species: number; name: string }
   | { type: 'event'; id: string; x?: number; y?: number }
   | { type: 'meteor'; x: number; y: number }

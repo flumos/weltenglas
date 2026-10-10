@@ -17,7 +17,7 @@ export function Jury() {
   useEffect(() => {
     let alive = true;
     sfx('drum');
-    judge().then(r => { if (!alive) return; setRes(r); });
+    judge().then(r => { if (!alive) return; if (!r) { S.screen.value = 'calendar'; return; } setRes(r); });
     return () => { alive = false; };
   }, []);
   useEffect(() => {

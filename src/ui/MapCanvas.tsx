@@ -15,6 +15,18 @@ export interface MapProps {
   showSunHandle?: boolean; showWind?: boolean; brush?: number; small?: boolean;
 }
 
+let photoRefs: { gl: HTMLCanvasElement | null; fx: HTMLCanvasElement | null } = { gl: null, fx: null };
+export function takePhoto(label: string) {
+  const { gl, fx } = photoRefs; if (!gl || !fx) return;
+  const c = document.createElement('canvas'); c.width = gl.width; c.height = gl.height + Math.round(gl.height * 0.08);
+  const x = c.getContext('2d')!;
+  x.fillStyle = '#111827'; x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(gl, 0, 0); x.drawImage(fx, 0, 0, gl.width, gl.height);
+  x.fillStyle = '#fff'; x.font = `600 ${Math.round(gl.height * 0.035)}px Inter, system-ui, sans-serif`;
+  x.fillText(label, Math.round(gl.width * 0.02), gl.height + Math.round(gl.height * 0.055));
+  const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = `weltenglas-${Date.now()}.png`; a.click();
+}
+
 export function MapCanvas({ onPointer, showSunHandle, showWind, brush = 0, small }: MapProps) {
   const glRef = useRef<HTMLCanvasElement>(null);
   const fxRef = useRef<HTMLCanvasElement>(null);
@@ -24,6 +36,7 @@ export function MapCanvas({ onPointer, showSunHandle, showWind, brush = 0, small
 
   useEffect(() => {
     let r: MapRenderer | null = null;
+    if (!small) photoRefs = { gl: glRef.current, fx: fxRef.current };
     try { r = new MapRenderer(glRef.current!); } catch (e) { console.error(e); }
     const fx = fxRef.current!, ctx = fx.getContext('2d')!;
     let raf = 0, lastGl = 0;
@@ -129,6 +142,16 @@ export function MapCanvas({ onPointer, showSunHandle, showWind, brush = 0, small
         ctx.strokeStyle = '#fff'; ctx.fillStyle = 'rgba(255,214,102,.95)'; ctx.lineWidth = 2.5 * dpr;
         ctx.beginPath(); ctx.arc(X, Y, k * 0.55, 0, 6.283); ctx.fill(); ctx.stroke();
         for (let i = 0; i < 8; i++) { const a = i * 0.785; ctx.beginPath(); ctx.moveTo(X + Math.cos(a) * k * 0.8, Y + Math.sin(a) * k * 0.8); ctx.lineTo(X + Math.cos(a) * k * 1.15, Y + Math.sin(a) * k * 1.15); ctx.stroke(); }
+      }
+      // Puls: „Zeig mir“
+      const pg = S.ping.value;
+      if (pg && now - pg.at < 4000) {
+        const k = (now - pg.at) / 1000;
+        for (let i = 0; i < 3; i++) {
+          const ph = (k * 1.2 + i / 3) % 1;
+          ctx.strokeStyle = `rgba(255,255,255,${(1 - ph) * 0.9})`; ctx.lineWidth = 3 * dpr;
+          ctx.beginPath(); ctx.arc(pg.x * sx, pg.y * sy, (6 + ph * 40) * dpr, 0, 6.283); ctx.stroke();
+        }
       }
       // Pinsel
       if (pr.brush > 0 && hover.current) {

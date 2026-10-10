@@ -42,9 +42,13 @@ export function RoomArt({ act, dark }: { act: 1 | 2 | 3; dark?: boolean }) {
       <rect x="120" y="300" width="560" height="26" rx="8" fill={desk} />
       <rect x="150" y="326" width="22" height="120" fill={desk} /><rect x="628" y="326" width="22" height="120" fill={desk} />
       {/* Lampe */}
-      <path d="M470 300V190l-60-40" stroke="#2b2f36" stroke-width="8" fill="none" stroke-linecap="round" />
-      <path d="M380 135l60 20-20 30z" fill="#2b2f36" />
-      <path d="M392 172l-30 90h150z" fill="#ffe7a3" opacity=".35" />
+      <path d="M318 162L282 236h236l-36-74z" fill="#ffe7a3" opacity=".28" />
+      <rect x="498" y="292" width="54" height="10" rx="5" fill="#2b2f36" />
+      <path d="M525 294V196L452 140" stroke="#2b2f36" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      <circle cx="525" cy="196" r="6" fill="#2b2f36" />
+      <path d="M352 158c0-26 22-42 48-42s48 16 48 42z" fill={act === 3 ? '#e9edf0' : '#3b6fb6'} />
+      <rect x="348" y="156" width="104" height="8" rx="4" fill={act === 3 ? '#c9d3da' : '#2f5c99'} />
+      <ellipse cx="400" cy="166" rx="30" ry="5" fill="#fff4c4" />
       {/* Glas */}
       <ellipse cx="400" cy="292" rx="120" ry="22" fill="#000" opacity=".12" />
       <rect x="290" y="236" width="220" height="62" rx="28" fill="#1d5c74" />

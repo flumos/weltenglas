@@ -45,7 +45,7 @@ function Chronicle() {
   return <>
     <div class="tabs">{kinds.map(([k, n]) => <button class={f === k ? 'on' : ''} onClick={() => setF(k)}>{n}</button>)}</div>
     <div class="card" style="padding:4px 18px">
-      {list.slice(0, 300).map(e => <div class="chron-row"><span class="muted">Tag {Math.floor(e.tick / 4)}</span><span style={e.big ? 'font-weight:700' : ''}>{know.species() || !e.text.startsWith('Neue Art') ? e.text : 'Eine neue Sorte ist aufgetaucht.'}</span></div>)}
+      {list.slice(0, 300).map(e => <div class="chron-row"><span class="muted">Tag {Math.floor(e.tick / 4)}</span><span class="row" style={e.big ? 'font-weight:700' : ''}><span class="grow">{know.species() || !e.text.startsWith('Neue Art') ? e.text : 'Eine neue Sorte ist aufgetaucht.'}</span>{e.x !== undefined && e.x >= 0 && <button class="btn small ghost" onClick={() => S.showAt(e.x, e.y)}><Icon name="eye" size={14} />Zeig mir</button>}</span></div>)}
       {!list.length && <p class="muted" style="padding:16px 0">Noch nichts passiert.</p>}
     </div>
   </>;

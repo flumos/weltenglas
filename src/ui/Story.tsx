@@ -9,7 +9,7 @@ import { saveGame } from '../game/save.ts';
 
 export function ActIntro() {
   const c = S.career.value!;
-  const next = (c.act + 1) as 2 | 3;
+  const [next] = useState(() => Math.min(3, c.act + 1) as 2 | 3);
   const a = ACTS[next];
   const [busy, setBusy] = useState(false);
   return (
@@ -25,7 +25,7 @@ export function ActIntro() {
         await enterAct(next);
         if (next === 3) {
           // Fallback: Gibt es noch keine denkenden Wesen, schickt Dr. Brand eine Laborprobe
-          if (labSample()) S.toast('Dr. Ilse Brand schickt dir eine Laborprobe: „Denker“, eine kluge Linie aus ihrem Institut.', 'big');
+          if (await labSample()) S.toast('Dr. Ilse Brand schickt dir eine Laborprobe: „Denker“, eine kluge Linie aus ihrem Institut.', 'big');
         }
         if (next === 2) S.toast(`Willkommen im Keller! Kontostand: ${fmtMoney(S.career.value!.money)}`, 'big');
         saveGame();

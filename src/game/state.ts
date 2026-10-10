@@ -58,6 +58,8 @@ export const modal = signal<null | { kind: string; data?: unknown }>(null);
 export const sheetOpen = signal(false);
 export const locked = signal(false);       // z. B. Ferien bei Oma
 export const notebookTab = signal('album');
+export const ping = signal<null | { x: number; y: number; at: number }>(null);
+export function showAt(x?: number, y?: number) { if (x === undefined || y === undefined || x < 0) return; ping.value = { x: x + 0.5, y: y + 0.5, at: performance.now() }; screen.value = 'glass'; }
 
 export const SPEEDS = [
   { label: '1×', tps: 4 / 12 },

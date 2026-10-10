@@ -2,7 +2,7 @@
 // node tools/steer.ts [kategorie|all] [seeds=8]
 // Für jede Akt-1-Kategorie: Vorlauf bis zum Karrieretag des Wettbewerbs (Standardspiel),
 // dann Vorbereitung mit Strategie vs. Standard (nichts tun), Wertung über catScore.
-import { createWorld, seedLife } from '../src/sim/world.ts';
+import { createWorld, seedLife, cloneWorld } from '../src/sim/world.ts';
 import { step, applyCmd, stressTest } from '../src/sim/sim.ts';
 import { metrics } from '../src/sim/metrics.ts';
 import { CATEGORIES, catScore } from '../src/data/categories.ts';
@@ -44,39 +44,50 @@ function windFromSea(W: World) {
   return idx;
 }
 
+/** „Probierender Spieler“: testet Kandidaten-Eingriffe auf einer Kopie (wie die Live-Sterne der Jury-Vorschau)
+ *  und nimmt den besten nach `horizon` Tagen. */
+function look(cat: string, cands: ((W: World) => void)[], horizon: number, every: number): Strat {
+  return (W, d) => {
+    if (d % every !== 0) return;
+    let best = -1, bi = 0;
+    for (let i = 0; i < cands.length; i++) {
+      const C = cloneWorld(W); C.chronicle = [];
+      cands[i](C);
+      for (let t = 0; t < horizon * P.TPD; t++) step(C);
+      const sc = catScore(CATEGORIES[cat], { m: metrics(C), stress: null }).x;
+      if (sc > best) { best = sc; bi = i; }
+    }
+    cands[bi](W);
+  };
+}
+const windTo = (dir: number) => (W: World) => applyCmd(W, { type: 'wind', dir, on: true, str: 0.9 });
+const WINDS = [0, 1, 2, 3, 4, 5, 6, 7].map(windTo);
 interface Case { cat: string; start: number; days: number; good: Strat; bad?: Strat; setup?: Strat }
+const doseC = (k: number) => (W: World) => doseGreen(W, k, 150);
+const sunTo = (x: number, y: number, I?: number) => (W: World) => applyCmd(W, { type: 'sun', x, y, I });
+const sunLand = (I: number) => (W: World) => { const lc = landCentroid(W); applyCmd(W, { type: 'sun', x: lc.x / W.w, y: lc.y / W.h, I }); };
+const NOP = () => {};
 const CASES: Case[] = [
   {
     cat: 'green', start: 0, days: 10,
-    good: (W, d) => { if (d % 3 === 1) doseGreen(W, 1, 60); },
-    bad: (W, d) => { if (d % 1 === 0) for (let i = 0; i < 4; i++) applyCmd(W, { type: 'dose', x: W.w / 2, y: W.h / 2, amount: 120 }); },
+    good: (W, d) => { if (d % 2 === 0) doseGreen(W, 2, 150); },
+    bad: (W) => { for (let i = 0; i < 3; i++) applyCmd(W, { type: 'dose', x: W.w / 2, y: W.h / 2, amount: 200 }); },
   },
   {
     cat: 'colorful', start: 10, days: 21,
-    // Lampenarm: Sonne aus der Mitte → Klimagefälle über die ganze Schale
-    good: (W, d) => { if (d === 0) applyCmd(W, { type: 'sun', x: 0.3, y: 0.4 }); if (d % 5 === 2) doseGreen(W, 1); },
+    good: look('colorful', [NOP, doseC(2), sunTo(0.3, 0.5), sunTo(0.7, 0.5), (W) => applyCmd(W, { type: 'water', delta: 0.02 }), (W) => applyCmd(W, { type: 'water', delta: -0.02 }), ...WINDS.slice(0, 8)], 5, 5),
   },
   {
     cat: 'foodweb', start: 31, days: 28,
-    good: (W, d) => { if (d === 0) applyCmd(W, { type: 'sun', I: 0.9 }); if (d % 4 === 1) doseGreen(W, 2); },
+    good: look('foodweb', [NOP, doseC(2), (W) => { doseC(2)(W); applyCmd(W, { type: 'sun', I: 1 }); }, (W) => applyCmd(W, { type: 'sun', I: 1 })], 5, 4),
   },
   {
     cat: 'landscapes', start: 59, days: 28,
-    good: (W, d) => {
-      if (d === 0) {
-        applyCmd(W, { type: 'sun', I: 0.9, x: 0.35, y: 0.45 });
-        applyCmd(W, { type: 'wind', dir: windFromSea(W), on: true, str: 0.8 });
-        const pk = peakCell(W); applyCmd(W, { type: 'terrain', x: pk.x, y: pk.y, r: 4, delta: 0.08 });
-      }
-      if (d === 5) applyCmd(W, { type: 'water', delta: -0.02 });
-    },
+    good: look('landscapes', [NOP, ...WINDS, sunTo(0.3, 0.5), sunTo(0.7, 0.5), (W) => applyCmd(W, { type: 'water', delta: -0.02 })], 6, 7),
   },
   {
     cat: 'rainforest', start: 87, days: 28,
-    good: (W, d) => {
-      if (d === 0) { const lc = landCentroid(W); applyCmd(W, { type: 'sun', I: 1.0, x: lc.x / W.w, y: lc.y / W.h }); applyCmd(W, { type: 'wind', dir: windFromSea(W), on: true, str: 0.8 }); }
-      if (d % 4 === 2) doseGreen(W, 1);
-    },
+    good: look('rainforest', [NOP, ...WINDS, sunLand(1), (W) => applyCmd(W, { type: 'sun', I: 1 }), doseC(2)], 7, 7),
   },
   {
     cat: 'sturdy', start: 115, days: 21,
@@ -84,7 +95,7 @@ const CASES: Case[] = [
   },
   {
     cat: 'bigstep', start: 136, days: 42,
-    good: (W, d) => { if (d === 0) { applyCmd(W, { type: 'sun', I: 1.0 }); applyCmd(W, { type: 'lid', open: true }); } if (d === 10) applyCmd(W, { type: 'lid', open: false }); if (d % 5 === 3) doseGreen(W, 2); },
+    good: look('bigstep', [NOP, doseC(2), (W) => applyCmd(W, { type: 'sun', I: 1 }), (W) => applyCmd(W, { type: 'lid', open: true }), (W) => applyCmd(W, { type: 'lid', open: false })], 7, 7),
   },
 ];
 

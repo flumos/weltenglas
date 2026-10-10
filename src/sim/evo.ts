@@ -133,7 +133,7 @@ export function mutation(W: World) {
         const j = (rngNext(rs) * n) | 0, v = W.B[off + j] * W.Wsoil[j];
         if (v > bv && W.B[off + j] > 0.01) { bv = v; c = j; bb = W.B[off + j]; dest = j; }
       }
-      if (bv > 0) { t.z = Math.min(1, t.z + 0.3); jump = J_WOOD; }
+      if (bv > 0) { t.z = Math.min(1, Math.max(0.5, t.z + 0.3)); jump = J_WOOD; }
     }
     // Rollenwechsel
     if (!jump) {

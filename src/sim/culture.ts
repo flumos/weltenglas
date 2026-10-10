@@ -6,7 +6,7 @@ import { settlementName } from './names.ts';
 import type { World, Settlement } from './types.ts';
 
 export const ERAS = ['Sammler', 'Ackerbau', 'Bronze', 'Schrift', 'Optik', 'Licht'];
-const ERA_K = [0, 5, 15, 40, 90, 200];
+const ERA_K = [0, 5, 15, 35, 70, 150];
 export const ERA_TEXT = [
   'sammeln Früchte und erzählen sich Geschichten über die warme Scheibe am Himmel.',
   'bestellen Felder. Ein Überschuss ernährt die ersten Handwerker.',
@@ -35,7 +35,7 @@ function speciesBioAround(W: World, spId: number, x: number, y: number, r: numbe
       const c = yy * w + xx; cells++;
       for (let s = 0; s < W.S; s++) if (W.alive[s] && W.sp[s] === spId) b += W.B[s * n + c];
       veg += W.veg[c]; T += W.T[c];
-      if (!W.seaMask[c] && W.hgt[c] - W.sea > 0.12) rock++;
+      if (!W.seaMask[c] && W.hgt[c] - W.sea > 0.07) rock++;
     }
   return { b, veg, rock, cells, T: cells ? T / cells : 0 };
 }
@@ -47,10 +47,10 @@ export function cultureDaily(W: World) {
   const live = W.settlements.filter(s => s.alive);
   if (live.length < 6) {
     for (let s = 0; s < S; s++) {
-      if (!W.alive[s] || W.k[s] < 6 || !W.land[s] || W.tot[s] < 3) continue;
+      if (!W.alive[s] || W.k[s] < 6 || !W.land[s] || W.tot[s] < 1.5) continue;
       let best = -1, bv = 0;
       for (let c = 0; c < n; c++) { const v = W.B[s * n + c]; if (v > bv) { bv = v; best = c; } }
-      if (best < 0 || bv < 0.4) continue;
+      if (best < 0 || bv < 0.12) continue;
       const x = best % W.w, y = (best / W.w) | 0;
       if (W.settlements.some(t => t.alive && (t.x - x) * (t.x - x) + (t.y - y) * (t.y - y) < 14 * 14)) continue;
       const id = W.settlements.length;
@@ -70,6 +70,8 @@ export function cultureDaily(W: World) {
     if (!st.alive) continue;
     const r = 4 + st.era;
     const env = speciesBioAround(W, st.species, st.x, st.y, r);
+    // Rohstoffe: Berge im weiteren Umland (Handelswege)
+    const ore = env.rock > 0 ? env.rock : speciesBioAround(W, st.species, st.x, st.y, r + 8).rock;
     const sp = W.species[st.species];
     if (!sp || !sp.alive || env.b < 0.05) {
       st.pop *= 0.7;
@@ -86,13 +88,13 @@ export function cultureDaily(W: World) {
     const f = clamp(1 - 1 / Math.max(1, surplus), 0, 0.9);
     // Wissen (Kremer + Henrich)
     const Pstar = 30 + 25 * st.era;
-    const g = 0.035;
+    const g = 0.05;
     let dK = g * dpow(Math.max(1, st.pop * (0.1 + f)), 0.5) * dpow(Math.max(1, st.K), 0.25);
     if (st.pop < Pstar) dK -= 0.02 * st.K;
     st.K = Math.max(1, st.K + dK * dt);
     // Ära: Wissen + Rohstoffe + Überschuss
     const next = st.era + 1;
-    if (next < ERAS.length && st.K >= ERA_K[next] && (next < 2 || env.rock > 0) && (next < 1 || surplus > 1.2)) {
+    if (next < ERAS.length && st.K >= ERA_K[next] && (next < 2 || ore > 0 || st.K >= 2 * ERA_K[next]) && (next < 1 || surplus > 1.2)) {
       st.era = next;
       chron(W, { kind: 'culture', text: `${st.name} erreicht die Ära „${ERAS[next]}“: Sie ${ERA_TEXT[next]}`, x: st.x, y: st.y, big: next >= 4 });
     }

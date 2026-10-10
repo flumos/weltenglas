@@ -136,10 +136,16 @@ export function applyCmd(W: World, cmd: Cmd) {
       if (s < 0) break;
       const want = t.land ? 0 : 1;
       let placed = 0;
-      for (const c of cellsIn(W, cmd.x, cmd.y, 3)) if (W.seaMask[c] === want) { W.B[s * W.n + c] = 0.6; placed++; }
-      if (!placed) {
-        // keine passende Zelle: im ganzen passenden Lebensraum dünn verteilen
-        for (let c = 0; c < W.n; c++) if (W.seaMask[c] === want) W.B[s * W.n + c] = 0.02;
+      for (const c of cellsIn(W, cmd.x, cmd.y, 3)) if (W.seaMask[c] === want) { W.B[s * W.n + c] = cmd.amount ?? 0.6; placed++; }
+      if (placed < 6) {
+        // zu wenig passende Zellen: nächstgelegenen passenden Fleck suchen
+        let best = -1, bd = Infinity;
+        for (let c = 0; c < W.n; c++) if (W.seaMask[c] === want) {
+          const dx = (c % W.w) - cmd.x, dy = ((c / W.w) | 0) - cmd.y, d = dx * dx + dy * dy;
+          if (d < bd) { bd = d; best = c; }
+        }
+        if (best >= 0) for (const c of cellsIn(W, best % W.w, (best / W.w) | 0, 3)) if (W.seaMask[c] === want && !W.B[s * W.n + c]) { W.B[s * W.n + c] = cmd.amount ?? 0.6; placed++; }
+        if (!placed) for (let c = 0; c < W.n; c++) if (W.seaMask[c] === want) W.B[s * W.n + c] = 0.02;
       }
       const sp = W.species[W.sp[s]]; sp.est = true;
       if (cmd.name) sp.name = cmd.name; else nameSpecies(W, sp.id);

@@ -7,7 +7,7 @@ import { CATEGORIES } from '../data/categories.ts';
 import { itemById } from '../data/items.ts';
 import { BIOMES, CAUSES } from '../sim/params.ts';
 import { WIND_NAMES } from '../sim/climate.ts';
-import { MapCanvas } from './MapCanvas.tsx';
+import { MapCanvas, takePhoto } from './MapCanvas.tsx';
 import { Icon, Stars } from './icons.tsx';
 import { Portrait } from './art.tsx';
 import { Sparkline, TpcCurve, Bar, biomeCss, speciesColor, roleText, stageName } from './widgets.tsx';
@@ -41,6 +41,7 @@ const VIEWS: { id: string; name: string; needs?: () => boolean; item?: string }[
 ];
 
 let prevSpeed = -1;
+export const glyphOf = (t: { role: number; land: number; z: number }) => t.role === 0 ? (t.land ? (t.z > 0.45 ? 'pine' : 'leaf') : 'dots') : t.role === 1 ? (t.land ? 'paw' : 'bug') : 'fish';
 function selectTool(id: string) {
   const t = TOOLS.find(x => x.id === id)!;
   const c = S.career.value!;
@@ -82,12 +83,13 @@ function TopBar() {
       {st ? (
         <button class="pill dark contest-pill" onClick={() => S.modal.value = { kind: 'contest' }}>
           <Icon name="trophy" size={18} />{st.ct.name}<span class="muted ctx" style="opacity:.75;font-weight:500">· {st.ct.cats.map(x => CATEGORIES[x.id].short).join(' + ')} · noch {Math.ceil(st.daysLeft)} Tage</span>
-          <span class="spacer" style="display:block" />{know.rank() ? <span style="margin-left:4px">Platz {st.place}</span> : <Stars n={st.stars} unknown={st.unknown} />}<span class="tiny" style="opacity:.7;margin-left:6px">{Math.ceil(st.daysLeft)} T.</span>
+          <span class="spacer" style="display:block" />{know.rank() ? <span style="margin-left:4px">Platz {st.place}</span> : <Stars n={st.stars} unknown={st.unknown} />}<span class="tiny mob-only" style="opacity:.7;margin-left:6px">{Math.ceil(st.daysLeft)} T.</span>
         </button>
       ) : (
         <button class="pill choose" onClick={() => { setSpeedIndex(-1); S.screen.value = 'calendar'; }}><Icon name="calendar" size={18} />Wettbewerb wählen</button>
       )}
       <span class="pill money"><Icon name="pig" size={18} />{fmtMoney(c.money)}</span>
+      <button class="iconbtn" title="Foto" onClick={() => takePhoto(`Weltenglas · ${c.name}s Welt · Tag ${Math.floor(S.day.value)}`)}><Icon name="camera" /></button>
       <button class="iconbtn" title="Forschungsheft" onClick={() => { S.screen.value = 'notebook'; }}><Icon name="book" /></button>
       <button class="iconbtn" title="Einstellungen" onClick={() => S.modal.value = { kind: 'settings' }}><Icon name="gear" /></button>
     </div>
@@ -118,7 +120,7 @@ function SpeciesCard() {
         const r = reg.find(x => x.id === s.id);
         return (
           <button class={`sp-row ${sel === s.id ? 'sel' : ''}`} onClick={() => { S.selectedSpecies.value = s.id; sim.selectSpecies(s.id); S.cellInfo.value = null; if (S.tool.value !== 'look') S.tool.value = 'look'; }}>
-            <span class="dot" style={`background:${speciesColor(s.typus)}`} />
+            <span class="glyph" style={`color:${speciesColor(s.typus)}`}><Icon name={glyphOf(s.typus)} size={16} stroke={2.2} /></span>
             <span class="grow"><div class="nm">{lupe ? s.name : (r?.name && S.career.value!.named.includes(s.id) ? r.name : `Sorte ${i + 1}`)}</div>
               <div class="sub">{lupe ? `${roleText(s.typus)}${know.temp() ? ` · ${s.typus.topt.toFixed(0)} °C` : ''}` : s.typus.role === 0 ? 'grünlich' : 'bewegt sich'}</div></span>
             {logger && r?.hist?.length ? <Sparkline data={r.hist} color={speciesColor(s.typus)} w={60} h={22} /> : <Bar v={Math.sqrt(s.share)} color={speciesColor(s.typus)} />}

@@ -13,6 +13,7 @@ import { Portrait } from './art.tsx';
 import { roleText, stageName } from './widgets.tsx';
 import { sfx, ambient } from '../game/audio.ts';
 import { localStorageGet, localStorageSet } from './App.tsx';
+import { ACHIEVEMENTS } from '../data/achievements.ts';
 
 function close() { S.modal.value = null; }
 
@@ -117,6 +118,8 @@ function Shelf() {
       <div class="label" style="margin:14px 0 8px">Pokale und Schleifen</div>
       {t.map(r => <div class="row" style="padding:6px 0"><Icon name="trophy" class={r.place === 1 ? '' : 'faint'} /><span class="grow">{contestById(r.contest).name}</span><b>Platz {r.place}</b></div>)}
       {!t.length && <p class="muted small">Noch leer. Der erste Pokal kommt bestimmt.</p>}
+      <div class="label" style="margin:14px 0 8px">Erfolge · {ACHIEVEMENTS.filter(a => c.flags['ach_' + a.id]).length}/{ACHIEVEMENTS.length}</div>
+      {ACHIEVEMENTS.map(a => <div class="row small" style={`padding:4px 0;${c.flags['ach_' + a.id] ? '' : 'opacity:.4'}`}><Icon name={c.flags['ach_' + a.id] ? 'star' : 'lens'} size={16} /><b>{a.name}</b><span class="muted grow">{a.desc}</span></div>)}
       <div class="label" style="margin:14px 0 8px">Instrumente</div>
       <p class="small">{Object.keys(c.inv).filter(k => c.inv[k] > 0 && !['salz', 'kruemel', 'vulkan', 'vulkanUsed', 'starter', 'tuempel'].includes(k)).length} Geräte im Regal · Kryo-Röhrchen: {c.freezer.length}/3{c.freezer.length ? ` (${c.freezer.map(f => f.name).join(', ')})` : ''}</p>
     </div>
@@ -156,5 +159,5 @@ export function Modals() {
 export function Toasts() {
   const t = S.toasts.value;
   if (S.screen.value !== 'glass') return null;
-  return <div class="toasts">{t.filter(x => x.kind !== 'species').slice(-2).map(x => <div class={`toast ${x.kind}`} onClick={() => { if (x.species !== undefined) { S.selectedSpecies.value = x.species; sim.selectSpecies(x.species); } S.toasts.value = S.toasts.value.filter(y => y.id !== x.id); }}><Icon name={x.kind === 'bad' ? 'warn' : x.kind === 'big' ? 'sparkle' : 'info'} size={18} />{x.text}</div>)}</div>;
+  return <div class="toasts">{t.filter(x => x.kind !== 'species').slice(-2).map(x => <div class={`toast ${x.kind}`} onClick={() => { if (x.x !== undefined) S.showAt(x.x, x.y); if (x.species !== undefined) { S.selectedSpecies.value = x.species; sim.selectSpecies(x.species); } S.toasts.value = S.toasts.value.filter(y => y.id !== x.id); }}><Icon name={x.kind === 'bad' ? 'warn' : x.kind === 'big' ? 'sparkle' : 'info'} size={18} />{x.text}</div>)}</div>;
 }

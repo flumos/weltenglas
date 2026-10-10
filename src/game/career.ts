@@ -13,6 +13,7 @@ import type { Career, ContestResult } from './state.ts';
 import { saveGame } from './save.ts';
 import { sfx } from './audio.ts';
 import { START_TRAITS } from '../sim/world.ts';
+import { ACHIEVEMENTS } from '../data/achievements.ts';
 
 // ---------------------------------------------------------------- Helfer
 export function hashf(...xs: (number | string)[]) {
@@ -113,7 +114,7 @@ export function startContest(id: string) {
 
 // ---------------------------------------------------------------- Live-Wertung
 export function evaluate(ct: Contest, m: Metrics, stress: StressResult | null) {
-  const cats = ct.cats.map(({ id, w }) => { const cat = CATEGORIES[id]; const r = catScore(cat, { m, stress }); return { id, w, s: r.s, x: r.x }; });
+  const cats = ct.cats.map(({ id, w, ref }) => { const base = CATEGORIES[id]; const cat = ref ? { ...base, xref: base.x0 + (base.xref - base.x0) * ref } : base; const r = catScore(cat, { m, stress }); return { id, w, s: r.s, x: r.x }; });
   const points = cats.reduce((a, c) => a + c.w * c.s, 0);
   return { cats, points };
 }
@@ -245,16 +246,16 @@ export async function moveGlass(size: 'M' | 'L' | 'XL') {
   saveGame();
 }
 
-/** Story-Fallback für Akt 3: Laborprobe einer denkenden Linie */
-export function labSample() {
+/** Story-Fallback für Akt 3: Laborprobe einer denkenden Linie, abgeleitet vom stärksten Landtier */
+export async function labSample() {
   const reg = S.registry.value;
   if (reg.some(r => r.alive && r.typus.k >= 6)) return false;
-  // stärkste Landtier-Art als Vorlage
   const base = reg.filter(r => r.alive && r.typus.land && r.typus.role > 0).sort((a, b) => b.peak - a.peak)[0];
-  const t = base ? { ...base.typus } : { ...START_TRAITS, role: 1, land: 1, mob: 0.7, dry: 0.3, hue: 30 };
-  Object.assign(t, { k: 6, brain: 0.8, social: 0.6, z: Math.max(0.65, t.z), mob: Math.max(0.65, t.mob), role: 1, land: 1 });
-  const m = S.meta.value;
-  sim.sendCmd({ type: 'inoculate', traits: t, x: (m?.w ?? 96) * 0.5, y: (m?.h ?? 64) * 0.5, name: 'Denker' }, true);
+  const t = base ? { ...base.typus } : { ...START_TRAITS, role: 1, land: 1, mob: 0.7, dry: 0.3, hue: 30, z: 0.3, k: 4 };
+  Object.assign(t, { k: 6, brain: 0.8, social: 0.6, mob: Math.max(0.62, t.mob), role: 1, land: 1 });
+  let x = (S.meta.value?.w ?? 96) * 0.5, y = (S.meta.value?.h ?? 64) * 0.5;
+  if (base) { const d = await sim.inspect(base.id); if (d && d.cx >= 0) { x = d.cx; y = d.cy; } }
+  sim.sendCmd({ type: 'inoculate', traits: t, x, y, name: 'Denker', amount: 2.0 }, true);
   return true;
 }
 
@@ -301,6 +302,10 @@ export function onDayGame(d: sim.DayMsg) {
       S.modal.value = null;
       S.screen.value = 'jury';
     }
+  }
+  for (const a of ACHIEVEMENTS) if (!c.flags['ach_' + a.id] && a.check(d.metrics, d.flags)) {
+    S.patchCareer(k => { k.flags['ach_' + a.id] = Math.floor(d.day); });
+    S.toast(`Erfolg: ${a.name}`, 'info');
   }
   if (Math.floor(d.day) % 5 === 0) saveGame();
 }

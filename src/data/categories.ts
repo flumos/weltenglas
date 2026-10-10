@@ -21,28 +21,28 @@ const frac = (m: Metrics, ids: number[]) => ids.reduce((a, i) => a + m.biomeFrac
 export const CATEGORIES: Record<string, Category> = {
   green: {
     id: 'green', name: 'Grünste Welt', short: 'Grün', desc: 'Pflanzen- und Plankton-Biomasse je Feld, mal Klarheit des Wassers.',
-    x: ({ m }) => m.green, x0: 0.3, xref: 2.0, gamma: 0.8, fmt: x => `${x.toFixed(2)} Grün je Feld`,
+    x: ({ m }) => m.green, x0: 0.5, xref: 1.35, gamma: 1.2, fmt: x => `${x.toFixed(2)} Grün je Feld`,
     tip: 'Mehr Licht und eine Prise Nährsalz dort, wo es grün ist. Aber Vorsicht: Zu viel Dünger trübt das Wasser.',
   },
   colorful: {
     id: 'colorful', name: 'Buntestes Meer', short: 'Bunt', desc: '0,6 · etablierte Arten + 0,4 · Hill-Vielfalt (wie ausgewogen die Arten sind).',
-    x: ({ m }) => 0.6 * m.species + 0.4 * m.hill, x0: 1, xref: 14, gamma: 0.8, needs: 'lupe', fmt: x => `Vielfaltswert ${x.toFixed(1)}`,
+    x: ({ m }) => 0.6 * m.species + 0.4 * m.hill, x0: 2, xref: 10, gamma: 1, needs: 'lupe', fmt: x => `Vielfaltswert ${x.toFixed(1)}`,
     tip: 'Vielfalt braucht Unterschiede: warme und kalte Zonen, Inseln, Meeresarme. Schiebe die Sonne aus der Mitte, dann entstehen Nischen.',
   },
   foodweb: {
     id: 'foodweb', name: 'Fressen und gefressen werden', short: 'Nahrung', desc: 'Ernährungsstufen, Biomasse der Tiere und ein Bonus für Räuber.',
-    x: ({ m }) => m.levels * 20 + Math.min(30, Math.sqrt(m.graz + m.pred) * 1.2) + (m.pred > 2 ? 20 : m.pred > 0.2 ? 8 : 0),
-    x0: 20, xref: 95, gamma: 0.9, fmt: x => `${x.toFixed(0)} Nahrungspunkte`,
+    x: ({ m }) => m.levels * 10 + 2 * Math.sqrt(m.graz) + 3 * Math.sqrt(m.pred),
+    x0: 80, xref: 150, gamma: 1.3, fmt: x => `${x.toFixed(0)} Nahrungspunkte`,
     tip: 'Weidegänger brauchen viel Plankton, Räuber viele Weidegänger. Ein reiches, warmes Meer trägt mehr Stufen.',
   },
   landscapes: {
     id: 'landscapes', name: 'Vielfalt der Landschaften', short: 'Landschaften', desc: 'Anzahl Biome mit mindestens 3 % Fläche, dazu wie gleichmäßig sie verteilt sind.',
-    x: ({ m }) => m.biomeKinds + 0.6 * m.biomeHill, x0: 3, xref: 12, gamma: 0.9, fmt: x => `${x.toFixed(1)} Landschaftspunkte`,
+    x: ({ m }) => m.biomeKinds + 0.6 * m.biomeHill, x0: 7.9, xref: 11.2, gamma: 1, fmt: x => `${x.toFixed(1)} Landschaftspunkte`,
     tip: 'Gebirge machen Regen auf der einen und Steppe auf der anderen Seite. Wind vom Meer auf die Berge lenken!',
   },
   rainforest: {
     id: 'rainforest', name: 'Regenwald', short: 'Wald', desc: 'Fläche von Wald und Regenwald (Regenwald zählt doppelt).',
-    x: ({ m }) => (m.biomeFrac[B_FOREST] + m.biomeFrac[B_TAIGA] * 0.6 + 2 * m.biomeFrac[B_RAIN]) * 100, x0: 0, xref: 14, gamma: 0.8,
+    x: ({ m }) => (m.biomeFrac[B_FOREST] + m.biomeFrac[B_TAIGA] * 0.6 + 2 * m.biomeFrac[B_RAIN]) * 100, x0: 0, xref: 10, gamma: 0.6,
     fmt: x => `${x.toFixed(1)} % Waldfläche`, tip: 'Wälder brauchen Holz (ab 8 % Sauerstoff), Wärme und viel Regen. Regenwald wächst nur, wo es über 22 °C und nass ist.',
   },
   icewold: {
@@ -52,12 +52,12 @@ export const CATEGORIES: Record<string, Category> = {
   },
   sturdy: {
     id: 'sturdy', name: 'Felsenfest', short: 'Felsenfest', desc: 'Die Jury kühlt eine Kopie deines Glases 36 Stunden um 9 °C ab: Widerstand, Erholung, Artenerhalt.',
-    x: ({ stress }) => stress ? stress.score : 0, x0: 40, xref: 97, gamma: 1.0, fmt: x => `${x.toFixed(0)} Stresstest-Punkte`,
+    x: ({ stress }) => stress ? stress.score : 0, x0: 25, xref: 97, gamma: 0.85, fmt: x => `${x.toFixed(0)} Stresstest-Punkte`,
     tip: 'Eine Thermostat-Heizplatte hält die Grundtemperatur, wenn es kalt wird. Viele Arten fangen den Schock besser ab.',
   },
   bigstep: {
     id: 'bigstep', name: 'Der große Schritt', short: 'Schritt', desc: 'Höchste Komplexitätsstufe des Lebens plus Sauerstoff in der Luft.',
-    x: ({ m }) => m.kMax * 18 + Math.min(21, m.o2) * 1.2 + (m.landAnimals > 1 ? 8 : 0), x0: 20, xref: 110, gamma: 0.9,
+    x: ({ m }) => m.kMax * 12 + m.zMax * 30 + Math.min(20, Math.sqrt(m.landAnimals)) + Math.min(21, m.o2) * 0.8, x0: 85, xref: 100, gamma: 1,
     fmt: x => `${x.toFixed(0)} Komplexitätspunkte`, tip: 'Komplexe Zellen brauchen Sauerstoff. Viel Licht, viel Plankton – und Geduld.',
   },
   hot: {

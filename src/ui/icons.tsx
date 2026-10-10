@@ -60,6 +60,8 @@ const P: Record<string, string> = {
   trophy: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3',
   dna: 'M7 3c0 6 10 6 10 12M17 3c0 6-10 6-10 12M7 21c0-2 1-3 2-4M17 21c0-2-1-3-2-4M9 7h6M8 11h8',
   door: 'M5 21V3h11l3 2v16M12 12h.01M3 21h18',
+  pine: 'M12 3l6 8h-3.5l4.5 6H5l4.5-6H6zM12 17v4',
+  camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 10a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7',
   pig: 'M5 11a7 6 0 0 1 13-2l2-1v4l-1 1v3a2 2 0 0 1-2 2h-1v2h-2v-2H9v2H7v-3a6 6 0 0 1-2-4zM14 10h.01',
 };
 

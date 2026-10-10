@@ -3,7 +3,7 @@
 export interface Rival { id: string; name: string; desc: string; mu: number; sigma: number }
 export interface Contest {
   id: string; act: 1 | 2 | 3; name: string; place: string;
-  cats: { id: string; w: number }[];
+  cats: { id: string; w: number; ref?: number }[];
   days: number; prizes: [number, number, number]; entry: number;
   rivals: Rival[]; optional?: boolean; prizeItem?: string; finale?: boolean;
   jury: string[]; intro: string;

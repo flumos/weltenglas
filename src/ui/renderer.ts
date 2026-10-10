@@ -42,6 +42,9 @@ float bilinGz(vec2 g){
   return mix(mix(texelFetch(GZ,i0,0).r, texelFetch(GZ,i1,0).r, t.x), mix(texelFetch(GZ,i2,0).r, texelFetch(GZ,i3,0).r, t.x), t.y);
 }
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
+vec2 warp(vec2 g){ return g + (vec2(vnoise(g*0.85), vnoise(g*0.85 + 11.3)) - 0.5) * 1.1 + (vec2(vnoise(g*2.3+3.1), vnoise(g*2.3+7.7)) - 0.5) * 0.45; }
 vec3 ramp(float t, vec3 a, vec3 b, vec3 c){ return t < 0.5 ? mix(a, b, t*2.0) : mix(b, c, t*2.0-1.0); }
 vec3 tempCol(float T){ float t = clamp((T + 6.0) / 42.0, 0.0, 1.0);
   return t < 0.33 ? mix(vec3(0.16,0.32,0.72), vec3(0.45,0.7,0.85), t/0.33) : t < 0.6 ? mix(vec3(0.45,0.7,0.85), vec3(0.96,0.86,0.55), (t-0.33)/0.27) : mix(vec3(0.96,0.86,0.55), vec3(0.85,0.27,0.18), (t-0.6)/0.4); }
@@ -49,11 +52,13 @@ vec3 tempCol(float T){ float t = clamp((T + 6.0) / 42.0, 0.0, 1.0);
 void main(){
   // Schalenform: abgerundetes Rechteck mit Rand
   vec2 q = uv;
-  vec2 g = q * grid;
+  vec2 g0 = q * grid;
+  vec2 g = warp(g0);
   float h = hAt(g);
   float land = smoothstep(sea - 0.0025, sea + 0.0025, h);
   float depth = max(0.0, sea - h);
   float prod; vec3 bc = bilinBiome(g, prod);
+  float prodN = prod;
   vec4 b = bilinB(g);
   float T = b.r * 255.0 / 4.0 - 20.0;
   // Hillshading (Licht von Nordwest)
@@ -65,14 +70,14 @@ void main(){
   // Meer
   vec3 shelf = vec3(0.22, 0.52, 0.62), deep = vec3(0.07, 0.17, 0.33);
   vec3 seaC = mix(shelf, deep, smoothstep(0.0, 0.16, depth));
-  seaC = mix(seaC, vec3(0.2, 0.62, 0.5), clamp(prod * 2.2, 0.0, 0.6) * (1.0 - 0.6 * smoothstep(0.03, 0.14, depth)));
-  seaC = mix(seaC, vec3(0.18, 0.45, 0.32), clamp(prod * 1.5, 0.0, 0.45) * smoothstep(0.03, 0.14, depth));
+  seaC = mix(seaC, vec3(0.2, 0.62, 0.5), clamp(prod * 3.2, 0.0, 0.62) * (1.0 - 0.6 * smoothstep(0.03, 0.14, depth)));
+  seaC = mix(seaC, vec3(0.16, 0.42, 0.3), clamp(prod * 2.4, 0.0, 0.5) * smoothstep(0.03, 0.14, depth));
   if (T < -1.0) seaC = mix(seaC, vec3(0.9, 0.94, 0.97), smoothstep(-1.0, -3.0, T));
   // Plankton-Glitzern
   float sp = hash(floor(g * 2.5) + floor(time * 0.5));
   seaC += vec3(0.55, 0.9, 0.7) * step(0.985, sp) * clamp(prod * 2.0, 0.0, 1.0) * 0.5;
   // Land
-  vec3 landC = bc * (0.62 + 0.55 * shade);
+  vec3 landC = bc * (0.62 + 0.55 * shade) * (0.94 + 0.12 * vnoise(g0 * 4.0));
   float elev = max(0.0, h - sea);
   landC = mix(landC, vec3(0.93,0.95,0.97), smoothstep(0.38, 0.5, elev) * smoothstep(4.0, -2.0, T));
   // Strand
