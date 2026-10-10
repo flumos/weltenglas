@@ -163,6 +163,12 @@ export function MapCanvas({ onPointer, showSunHandle, showWind, brush = 0, small
         ctx.beginPath(); ctx.arc(X, Y, k, 0, 6.283); ctx.stroke();
         ctx.fillStyle = 'rgba(255,197,77,.85)'; ctx.beginPath(); ctx.arc(X, Y, 2.6 * dpr, 0, 6.283); ctx.fill();
       }
+      // Nordmarke an der oberen Weltkante (am Handy wegen der Drehung rechts)
+      if (!small) {
+        ctx.save(); ctx.translate(W / 2, 14 * dpr); if (rotRef.current) ctx.rotate(-Math.PI / 2);
+        ctx.font = `600 ${10 * dpr}px 'JetBrains Mono', ui-monospace, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(127,147,173,.75)'; ctx.fillText('N', 0, 0); ctx.restore();
+      }
       // Prüfpunkt
       if (pr.showMarker && hover.current && !pr.brush) {
         const X = hover.current.x * sx, Y = hover.current.y * sy;

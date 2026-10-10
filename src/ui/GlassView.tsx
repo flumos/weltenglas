@@ -102,7 +102,7 @@ function pickSpecies(id: number) { S.selectedSpecies.value = id; sim.selectSpeci
 /** Welche Messwerte zählen für die Kategorie des laufenden Wettbewerbs */
 const CAT_METRIC: Record<string, string> = {
   green: 'bio', colorful: 'species', foodweb: 'species', web: 'species', exotic: 'species', balance: 'species', giants: 'species',
-  bigstep: 'o2', mind: 'o2', hot: 'temp', icewold: 'temp', sturdy: 'temp',
+  bigstep: 'stage', mind: 'stage', development: 'stage', hot: 'temp', icewold: 'temp', sturdy: 'temp',
   landscapes: 'land', rainforest: 'land', continents: 'land', deepsea: 'land',
 };
 function countingMetrics() { const st = liveStatus(); return new Set(st ? st.ct.cats.map(x => CAT_METRIC[x.id]).filter(Boolean) : []); }
@@ -162,6 +162,7 @@ function TopBar() {
 }
 
 // ---------------------------------------------------------------- Links: Zustand der Welt
+function bioWord(green: number) { return green < 0.15 ? 'kaum etwas' : green < 0.5 ? 'wenig' : green < 1 ? 'einiges' : green < 1.6 ? 'viel' : 'üppig'; }
 function trendOf(data: number[]) { if (data.length < 6) return 0; const a = data[data.length - 6], b = data[data.length - 1]; return b - a; }
 function WorldState() {
   const m = S.metrics.value; if (!m) return null;
@@ -171,7 +172,7 @@ function WorldState() {
   const link = linking.value;
   const rows: { id: string; name: string; val: string; unit: string; color: string; data: number[]; fmtD: (d: number) => string; known: boolean; off?: string }[] = [
     { id: 'species', name: know.species() ? 'Arten' : 'Leben', val: know.species() ? String(m.species) : countWord(m.species), unit: '', color: '#a98bff', data: h.map(d => d.species), fmtD: d => (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(Math.round(d)), known: know.species() },
-    { id: 'bio', name: 'Biomasse', val: Math.round(h[h.length - 1]?.bio ?? m.total).toLocaleString('de-DE'), unit: '', color: '#5dffa8', data: h.map(d => d.bio), fmtD: d => { const b = h[h.length - 6]?.bio || 1; return (d >= 0 ? '+' : '−') + Math.abs(Math.round(d / b * 100)) + ' %'; }, known: true },
+    { id: 'bio', name: 'Biomasse', val: logger ? Math.round(h[h.length - 1]?.bio ?? m.total).toLocaleString('de-DE') : bioWord(m.green), unit: '', color: '#5dffa8', data: h.map(d => d.bio), fmtD: d => { const b = h[h.length - 6]?.bio || 1; return (d >= 0 ? '+' : '−') + Math.abs(Math.round(d / b * 100)) + ' %'; }, known: logger },
     { id: 'o2', name: 'Sauerstoff', val: know.o2() ? m.o2.toFixed(1).replace('.', ',') : o2Word(m.o2), unit: know.o2() ? '% O₂' : '', color: '#2ef2ff', data: h.map(d => d.o2), fmtD: d => (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(1).replace('.', ','), known: know.o2(), off: know.o2() ? undefined : itemById('gas').name },
     { id: 'temp', name: 'Temperatur Ø', val: know.temp() ? m.avgT.toFixed(1).replace('.', ',') : tempWord(m.avgT), unit: know.temp() ? '°C' : '', color: '#ff4fd8', data: h.map(d => d.T), fmtD: d => (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(1).replace('.', ','), known: know.temp(), off: know.temp() ? undefined : itemById('thermo').name },
   ];
@@ -194,7 +195,7 @@ function WorldState() {
       </div>
       {!logger && <p class="hint">Verlaufskurven zeigt der Datenlogger (Zoohandlung).</p>}
       <div>
-        <div class="kv"><span>Stufe des Lebens</span><b class="stage-name">{stageName(k)} · {k} von 6</b></div>
+        <div class="kv"><span>Stufe des Lebens{counts.has('stage') && <span class="badge">zählt</span>}</span><b class="stage-name">{stageName(k)} · {k} von 6</b></div>
         <div class="steps">{[1, 2, 3, 4, 5, 6].map(i => <i class={i <= k ? 'on' : i === k + 1 ? 'next' : ''} />)}</div>
       </div>
     </section>
@@ -237,8 +238,8 @@ function BiomeList() {
   const rows = m.biomes.map((v, i) => ({ i, f: v / tot })).filter(r => r.f > 0.004).sort((a, b) => b.f - a.f);
   return (
     <div class="tabbody">
-      {rows.map(r => <div class="bio" style={`--c:${biomeCss(r.i)};--w:${Math.min(100, r.f * 160)}%`}><span class="dot" /><span class="grow">{BIOMES[r.i].name}</span><i /><b class="mono">{Math.round(r.f * 100)} %</b></div>)}
-      <p class="hint">Land {Math.round(m.landFrac * 100)} % · Meer {Math.round((1 - m.landFrac) * 100)} %</p>
+      {rows.map(r => <div class="bio" style={`--c:${biomeCss(r.i)};--w:${Math.min(100, r.f * 160)}%`}><span class="dot" /><span class="grow">{BIOMES[r.i].name}</span><i /><b class="mono">{know.height() ? `${Math.round(r.f * 100)} %` : ''}</b></div>)}
+      <p class="hint">{know.height() ? `Land ${Math.round(m.landFrac * 100)} % · Meer ${Math.round((1 - m.landFrac) * 100)} %` : 'Genaue Anteile zeigt die Höhenkarte.'}</p>
     </div>
   );
 }
@@ -394,7 +395,7 @@ function alerts() {
   if (meta.ctl.lamp <= 0.01) out.push({ text: 'Lampe aus', why: 'ohne Licht wächst nichts' });
   const h = S.hist.value; if (h.length > 4) { const a = h[h.length - 4].bio, b = h[h.length - 1].bio; if (b < a * 0.7 && a > 50) out.push({ text: 'Leben nimmt ab' }); }
   if (m.o2 > 12 && m.kMax <= 1) out.push({ text: 'Sauerstoff wird zum Gift', why: 'einfache Zellen vertragen ihn nicht' });
-  if (m.clarity < 0.85) out.push({ text: 'Wasser trüb', why: 'Algenblüte durch zu viele Nährstoffe', act: know.nutr() ? { label: 'Nährstoffe zeigen', run: () => { S.overlay.value = 'nutr'; } } : undefined });
+  if (m.clarity < 0.85) out.push({ text: 'Wasser trüb', why: know.nutr() ? 'Algenblüte durch zu viele Nährstoffe' : undefined, act: know.nutr() ? { label: 'Nährstoffe zeigen', run: () => { S.overlay.value = 'nutr'; } } : undefined });
   if (m.maxT > 33) out.push({ text: 'Zu heiß für viele Arten', act: know.temp() ? { label: 'Temperatur zeigen', run: () => { S.overlay.value = 'temp'; } } : undefined });
   if (m.minT < -1) out.push({ text: 'Eis bildet sich' });
   if (meta.ctl.lid) out.push({ text: 'Deckel offen', why: 'Zimmerluft strömt ein' });
@@ -455,7 +456,7 @@ function MiniStrip() {
   const counts = countingMetrics();
   const items: [string, string, string, string][] = [
     ['species', know.species() ? 'Arten' : 'Leben', know.species() ? String(m.species) : countWord(m.species), '#a98bff'],
-    ['bio', 'Biomasse', Math.round(m.total).toLocaleString('de-DE'), '#5dffa8'],
+    ['bio', 'Biomasse', know.data() ? Math.round(m.total).toLocaleString('de-DE') : bioWord(m.green), '#5dffa8'],
     ['o2', 'Sauerstoff', know.o2() ? m.o2.toFixed(1).replace('.', ',') + ' %' : o2Word(m.o2), '#2ef2ff'],
     ['temp', 'Temperatur', know.temp() ? m.avgT.toFixed(1).replace('.', ',') + ' °C' : tempWord(m.avgT), '#ff4fd8'],
   ];
@@ -478,10 +479,15 @@ function Ctl({ links, color, icon, name, value, children }: { links: string; col
   );
 }
 function Range({ min, max, step, value, onInput, onChange, label }: { min: number; max: number; step: number; value: number; onInput?: (v: number) => void; onChange: (v: number) => void; label: string }) {
-  const p = ((value - min) / (max - min || 1)) * 100;
-  return <input type="range" aria-label={label} min={min} max={max} step={step} value={value} style={`--p:${p}%`}
-    onInput={e => { const el = e.target as HTMLInputElement; el.style.setProperty('--p', ((+el.value - min) / (max - min || 1)) * 100 + '%'); onInput?.(+el.value); }}
-    onChange={e => onChange(+(e.target as HTMLInputElement).value)} />;
+  // Während des Ziehens gilt der lokale Wert; sonst würde jeder neue Snapshot den Regler zurücksetzen.
+  const [local, setLocal] = useState<number | null>(null);
+  const v = local ?? value;
+  const p = ((v - min) / (max - min || 1)) * 100;
+  const end = (el: HTMLInputElement) => { onChange(+el.value); setTimeout(() => setLocal(null), 400); };
+  return <input type="range" aria-label={label} min={min} max={max} step={step} value={v} style={`--p:${p}%`}
+    onInput={e => { const n = +(e.target as HTMLInputElement).value; setLocal(n); onInput?.(n); }}
+    onChange={e => end(e.target as HTMLInputElement)}
+    onBlur={() => setLocal(null)} />;
 }
 const DIR_ORDER = [2, 3, 4, 5, 6, 7, 0, 1]; // N NO O SO S SW W NW → Index in WIND_NAMES
 const DIR_SHORT = ['W', 'NW', 'N', 'NO', 'O', 'SO', 'S', 'SW'];
@@ -489,6 +495,7 @@ const DIR_SHORT = ['W', 'NW', 'N', 'NO', 'O', 'SO', 'S', 'SW'];
 function Conditions() {
   const m = S.meta.value, c = S.career.value!; const mt = S.metrics.value;
   const [lampLocal, setLampLocal] = useState<number | null>(null);
+  useEffect(() => { if (lampLocal === null) return; const t = setTimeout(() => setLampLocal(null), 1500); return () => clearTimeout(t); }, [lampLocal]);
   if (!m) return null;
   const ctl = m.ctl;
   const lampMax = c.inv.tageslicht ? 100 : 60;
@@ -497,11 +504,11 @@ function Conditions() {
   const devices = ['arm', 'tageslicht', 'uhr', 'vent', 'vent8', 'kanne', 'deckel', 'heizplatte', 'uv', 'kuehlplatte'];
   const missing = devices.map(itemById).filter(it => it && it.act <= c.act && !c.inv[it.id] && (!it.requires || c.inv[it.requires]));
   return (
-    <section class="gpanel conditions">
-      <div class="ph"><span class="cap">Bedingungen</span><small>wirken auf die ganze Welt</small></div>
+    <section class={`gpanel conditions ${S.locked.value ? 'locked' : ''}`} aria-disabled={S.locked.value ? 'true' : undefined}>
+      <div class="ph"><span class="cap">Bedingungen</span><small>{S.locked.value ? 'gerade nicht erreichbar' : 'wirken auf die ganze Welt'}</small></div>
       <Ctl links="temp,o2,bio" color="var(--sun)" icon="sun" name="Lampe" value={`${lamp} %`}>
         <Range label="Lampenstärke" min={0} max={lampMax} step={5} value={Math.min(lamp, lampMax)} onInput={v => setLampLocal(v)}
-          onChange={v => { setLampLocal(null); sim.sendCmd({ type: 'sun', I: v / 100 }, true); sfx('click'); }} />
+          onChange={v => { sim.sendCmd({ type: 'sun', I: v / 100 }, true); sfx('click'); }} />
         <p class="sub">{c.inv.arm ? 'Den Lichtfleck im Glas mit der Maus oder dem Finger ziehen.' : 'Die Kit-Lampe steht fest in der Mitte.'}{lampMax < 100 ? ' Mehr als 60 % schafft die Tageslichtlampe.' : ''}</p>
       </Ctl>
       {c.inv.uhr ? <Ctl links="bio,temp" color="var(--sun)" icon="clock" name="Tageslänge" value={`${ctl.photo} h`}>
@@ -520,7 +527,7 @@ function Conditions() {
       </> : null}
       {c.inv.kanne ? <>
         <div class="sep" />
-        <Ctl links="land,species" color="var(--water)" icon="drop" name="Meeresspiegel" value={mt ? `Land ${Math.round(mt.landFrac * 100)} %` : ''}>
+        <Ctl links="land,species" color="var(--water)" icon="drop" name="Meeresspiegel" value={mt && know.height() ? `Land ${Math.round(mt.landFrac * 100)} %` : ''}>
           <div class="stepper">
             <button class="btn small" onClick={() => { sim.sendCmd({ type: 'water', delta: -0.012 }, true); sfx('place'); }}><Icon name="minus" size={14} />Ablassen</button>
             <button class="btn small" onClick={() => { sim.sendCmd({ type: 'water', delta: 0.012 }, true); sfx('place'); }}><Icon name="plus" size={14} />Nachfüllen</button>
@@ -601,24 +608,36 @@ function Menu() {
   return <div class="menu">{items.map(([ic, n, f]) => <button class="tool" onClick={() => { sfx('click'); f(); }}><Icon name={ic} size={19} />{n}</button>)}</div>;
 }
 function PhoneTabs() {
-  const sh = sheet.value;
+  const sh = sheet.value; const c = S.career.value!;
+  const pulse = !c.flags.dosed && c.current?.id === 'schulfest' && (c.inv.salz ?? 0) > 0;
   const tabs: [typeof sh, string, string][] = [['werte', 'bars', 'Werte'], ['bed', 'sliders', 'Bedingungen'], ['eingriff', 'lens', 'Eingriff'], ['menu', 'menu', 'Menü']];
-  return <div class="ptabs">{tabs.map(([id, ic, n]) => <button class={sh === id ? 'on' : ''} onClick={() => { sheet.value = sh === id ? '' : id; sfx('click'); }}><Icon name={ic} size={20} />{n}</button>)}</div>;
+  return <div class="ptabs">{tabs.map(([id, ic, n]) => <button class={`${sh === id ? 'on' : ''} ${pulse && id === 'eingriff' && sh !== id ? 'pulse' : ''}`} onClick={() => { sheet.value = sh === id ? '' : id; sfx('click'); }}><Icon name={ic} size={20} />{n}</button>)}</div>;
 }
 
 // ---------------------------------------------------------------- Hauptansicht
+function TutorialWatch() {
+  const c = S.career.value!; const d = S.day.value;
+  useEffect(() => {
+    if (c.flags.tutorial === 2 && d >= 2.5 && !c.current) {
+      S.patchCareer(k => { k.flags.tutorial = 3; });
+      startContest('schulfest');
+      showCard('contest');
+    }
+  }, [d >= 2.5, c.flags.tutorial]);
+  return null;
+}
 export function GlassView() {
   const c = S.career.value!;
   const tl = S.tool.value;
   const T = TOOLS.find(x => x.id === tl);
   const lastPaint = useRef(0);
-  const dragSun = useRef(false);
+  const dragSun = useRef<0 | 1 | 2>(0); // 0 = nein, 1 = gegriffen (noch Tippen), 2 = zieht
+  const downAt = useRef<{ x: number; y: number } | null>(null);
   const lastPt = useRef<{ x: number; y: number } | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const phone = useMedia('(max-width: 900px)');
   const box = useSize(stageRef);
-  const meta = S.meta.value;
-  const aspect = meta ? meta.w / meta.h : 1.5;
+  const aspect = S.metaAspect.value;
 
   // Glasgröße: am Desktop quer, auf dem Handy um 90° gedreht (hochkant)
   let gw = 0, gh = 0;
@@ -646,13 +665,6 @@ export function GlassView() {
   useEffect(() => {
     if (c.flags.tutorial === 1 && !S.modal.value) S.modal.value = { kind: 'tutorial-lamp' };
   }, [c.flags.tutorial]);
-  useEffect(() => {
-    if (c.flags.tutorial === 2 && S.day.value >= 2.5 && !c.current) {
-      S.patchCareer(k => { k.flags.tutorial = 3; });
-      startContest('schulfest');
-      showCard('contest');
-    }
-  }, [S.day.value, c.flags.tutorial]);
 
   // Auswahl auf dem Handy: Werte-Blatt öffnen
   const sel = S.selectedSpecies.value, ci = S.cellInfo.value;
@@ -671,15 +683,17 @@ export function GlassView() {
       if (px + 200 > rc.width) px -= 236; if (py + 150 > rc.height) py -= 170;
       hoverCell.value = { x: cx, y: cy, px: Math.max(0, px), py: Math.max(0, py) };
     }
-    // Lampe ziehen: mit Lampenarm jederzeit am Lichtfleck greifen
-    const nearSun = Math.hypot((x / w - meta.ctl.lampX) * w, (y / h - meta.ctl.lampY) * h) < Math.max(4, w / 24);
-    if (phase === 'down' && k.inv.arm && (nearSun || tl === 'sun')) dragSun.current = true;
-    if (dragSun.current) {
+    // Lampe ziehen: mit Lampenarm im Prüfen-Modus am Lichtfleck greifen. Erst echte Bewegung zieht, ein Tippen untersucht.
+    const nearSun = Math.hypot((x / w - meta.ctl.lampX) * w, (y / h - meta.ctl.lampY) * h) < 3;
+    if (phase === 'down') { downAt.current = { x, y }; dragSun.current = k.inv.arm && tl === 'look' && nearSun ? 1 : 0; }
+    if (dragSun.current === 1 && phase === 'move' && downAt.current && Math.hypot(x - downAt.current.x, y - downAt.current.y) > 0.8) dragSun.current = 2;
+    if (dragSun.current === 2) {
       const sx = x / w, sy = y / h;
-      if (phase === 'move' || phase === 'down') { const now = performance.now(); if (now - lastPaint.current > 60) { lastPaint.current = now; sim.sendCmd({ type: 'sun', x: sx, y: sy, quiet: true }); } }
-      if (phase === 'up') { dragSun.current = false; sim.sendCmd({ type: 'sun', x: sx, y: sy }, true); }
+      if (phase === 'move') { const now = performance.now(); if (now - lastPaint.current > 60) { lastPaint.current = now; sim.sendCmd({ type: 'sun', x: sx, y: sy, quiet: true }); } }
+      if (phase === 'up') { dragSun.current = 0; sim.sendCmd({ type: 'sun', x: sx, y: sy }, true); }
       return;
     }
+    if (phase === 'up') dragSun.current = 0;
     if (tl === 'look' && phase === 'up') {
       S.cellInfo.value = { x: cx, y: cy, c: cy * w + cx };
       S.selectedSpecies.value = -1;
@@ -735,6 +749,7 @@ export function GlassView() {
   return (
     <div class={`gv sheet-${sheet.value || 'none'}`}>
       <TopBar />
+      <TutorialWatch />
       <main class="gv-main">
         <aside class="gv-side left" aria-label="Messwerte"><WorldState /><Detail /></aside>
         <section class="gv-center">
@@ -742,7 +757,7 @@ export function GlassView() {
           <div class="stage" ref={stageRef}>
             {gw > 0 && <div class={`mapwrap ${phone ? 'rot' : ''}`} style={wrapStyle + (S.locked.value ? ';filter:grayscale(.6)' : '')}>
               <MapCanvas rot={phone} onPointer={onPointer} onLeave={() => { hoverCell.value = null; }}
-                showSun showSunHandle={!!c.inv.arm && (tl === 'look' || tl === 'sun')} showMarker={tl === 'look'}
+                showSun showSunHandle={!!c.inv.arm && tl === 'look'} showMarker={tl === 'look'}
                 showWind={S.overlay.value === 'rain' && know.rain()} brush={T?.brush ?? 0} />
             </div>}
             {!phone && <Probe />}

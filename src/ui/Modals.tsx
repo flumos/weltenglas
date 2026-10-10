@@ -76,6 +76,7 @@ function Settings() {
         <div class="row" style="flex-wrap:wrap"><button class="btn small" onClick={() => { saveGame(); S.toast('Gespeichert.', 'info'); }}><Icon name="check" size={16} />Speichern</button>
           <button class="btn small" onClick={() => exportFile()}><Icon name="download" size={16} />Als Datei sichern</button>
           <button class="btn small ghost" style="color:var(--bad)" onClick={async () => { if (!confirm('Wirklich alles löschen und neu anfangen?')) return; await wipeSave(); location.reload(); }}>Neues Spiel</button></div>
+        <button class="btn small" onClick={() => { S.modal.value = { kind: 'help' }; }}><Icon name="info" size={16} />So funktioniert dein Glas</button>
         <p class="tiny faint">Dein Spielstand liegt nur in diesem Browser. Tipp: Auf dem iPhone „Zum Home-Bildschirm“ hinzufügen, dann bleibt er sicher erhalten. Gespielt: {Math.round(c.playMs / 60000)} min.</p>
       </div>}
     </div>
@@ -136,8 +137,8 @@ function Help() {
         <div class="letter"><b>3 · Vielfalt braucht Unterschiede.</b> Warme und kalte Zonen, Gebirge, Inseln und Meeresarme schaffen Nischen. Eine gleichförmige Welt wird eintönig.</div>
       </div>
       <div class="label" style="margin:16px 0 6px">Bedienung</div>
-      <p class="small">Werkzeug unten antippen, dann auf die Welt tippen. Ohne Werkzeug untersuchst du eine Stelle. Oben stellst du das Tempo ein. Jeder Wettbewerb hat einen Stichtag – die Sterne zeigen, wie die Jury dein Glas jetzt bewerten würde.</p>
-      <p class="small muted" style="margin-top:8px">Tastatur: Leertaste Pause · 1–4 Tempo · S Sonne · W Wind · N Nährsalz · U Untersuchen · H Heft · Esc schließen</p>
+      <p class="small">Links liest du ab, wie es deiner Welt geht. Rechts stellst du die Bedingungen ein: Lampe, Wind, Wasser. Unten liegen die Eingriffe: Werkzeug antippen, dann ins Glas tippen. Mit „Prüfen“ untersuchst du eine Stelle. Oben steht der nächste Wettbewerb mit Stichtag und wie die Jury dein Glas jetzt bewerten würde. Am Handy öffnen sich Werte, Bedingungen, Eingriffe und Menü über die Leiste unten.</p>
+      <p class="small muted" style="margin-top:8px">Tastatur: Leertaste Pause · 1–4 Tempo · N Nährsalz · U Prüfen · H Heft · Esc schließen</p>
       <button class="btn primary" style="margin-top:16px" onClick={close}>Alles klar</button>
     </div>
   );
@@ -176,5 +177,5 @@ export function Modals() {
 export function Toasts() {
   const t = S.toasts.value;
   if (S.screen.value !== 'glass') return null;
-  return <div class="toasts">{t.filter(x => x.kind !== 'species').slice(-2).map(x => <div class={`toast ${x.kind}`} onClick={() => { if (x.x !== undefined) S.showAt(x.x, x.y); if (x.species !== undefined) { S.selectedSpecies.value = x.species; sim.selectSpecies(x.species); } S.toasts.value = S.toasts.value.filter(y => y.id !== x.id); }}><Icon name={x.kind === 'bad' ? 'warn' : x.kind === 'big' ? 'sparkle' : 'info'} size={18} />{x.text}</div>)}</div>;
+  return <div class="toasts">{t.slice(-2).map(x => <div class={`toast ${x.kind}`} onClick={() => { if (x.x !== undefined) S.showAt(x.x, x.y); if (x.species !== undefined) { S.selectedSpecies.value = x.species; sim.selectSpecies(x.species); } S.toasts.value = S.toasts.value.filter(y => y.id !== x.id); }}><Icon name={x.kind === 'bad' ? 'warn' : x.kind === 'big' || x.kind === 'species' ? 'sparkle' : 'info'} size={18} />{x.text}</div>)}</div>;
 }

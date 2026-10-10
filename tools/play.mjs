@@ -45,17 +45,18 @@ await ev(async () => { const w = window.__wg; await w.sim.advance(40); });
 await page.waitForTimeout(1500); await dismiss();
 await shot('14-day55');
 // Art auswählen
-const row = page.locator('.sp-row:visible').first(); if (await row.count()) await row.click();
+const row = page.locator('.gv .sp:visible').first(); if (await row.count()) await row.click();
 await page.waitForTimeout(1200); await dismiss();
 await shot('15-species');
-for (const v of ['Temperatur', 'Regen', 'Höhe', 'Arten']) { await page.locator('.views button', { hasText: v }).click(); await page.waitForTimeout(700); await shot('16-view-' + v); }
-await page.locator('.views button', { hasText: 'Biome' }).click();
+for (const v of ['Temperatur', 'Regen', 'Höhe', 'Arten']) { await page.locator('.seg.views button', { hasText: v === 'Arten' ? 'Leben' : v }).click(); await page.waitForTimeout(700); await shot('16-view-' + v); }
+await page.locator('.seg.views button', { hasText: 'Biome' }).click();
 // Notizbuch
-await page.locator('button[title="Forschungsheft"]').click({ force: true }); await page.waitForTimeout(600); await shot('17-album');
+if (mobile) await page.locator('.ptabs button', { hasText: 'Menü' }).click();
+await page.locator('.gv .menu .tool', { hasText: 'Heft' }).click({ force: true }); await page.waitForTimeout(600); await shot('17-album');
 await page.getByRole('button', { name: 'Chronik' }).click(); await shot('18-chronik');
 await page.getByRole('button', { name: 'Daten' }).click(); await shot('19-daten');
 await page.locator('.page-head .iconbtn').click(); await page.waitForTimeout(400);
-await page.locator('button[title="Zimmer"]').click(); await page.waitForTimeout(600); await shot('20-hub');
+await page.locator('.brand-mark').click(); await page.waitForTimeout(600); await shot('20-hub');
 await page.getByText('Kalender').first().click(); await page.waitForTimeout(500); await shot('21-calendar');
 console.log(errs.join('\n') || 'keine Fehler');
 await browser.close();

@@ -41,6 +41,8 @@ export const registry = signal<RegRow[]>([]);
 export const chronicle = signal<ChronicleEntry[]>([]);
 export const hist = signal<DayStat[]>([]);
 export const meta = signal<SnapMeta | null>(null);
+/** Seitenverhältnis der Schale (ändert sich nur beim Umzug) — für Layouts, die nicht bei jedem Snapshot neu rendern sollen */
+export const metaAspect = computed(() => { const m = meta.value; return m ? m.w / m.h : 1.5; });
 export const stress = signal<StressResult | null>(null);
 export const worldFlags = signal<Record<string, number>>({});
 export const visTh = signal(1);
