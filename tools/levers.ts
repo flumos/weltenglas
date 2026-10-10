@@ -57,6 +57,9 @@ const LEVERS: Record<string, (W: World, d: number) => void> = {
   edgeDose: (W, d) => { if (d === 0) applyCmd(W, { type: 'sun', x: 0.3, y: 0.5 }); if (d % 2 === 0) doseGreen(W, 2, 150); },
   waterDownWind: (W, d) => { if (d === 0) { applyCmd(W, { type: 'water', delta: -0.02 }); const b = bestWind(W); applyCmd(W, { type: 'wind', dir: b, on: true, str: 0.9 }); } },
   landscape: (W, d) => { if (d === 0) { applyCmd(W, { type: 'sun', I: 1, x: 0.35, y: 0.5 }); const b = bestWind(W); applyCmd(W, { type: 'wind', dir: b, on: true, str: 0.9 }); } },
+  sunCorner: (W, d) => { if (d === 0) applyCmd(W, { type: 'sun', x: 0.15, y: 0.2 }); },
+  sunCornerBright: (W, d) => { if (d === 0) applyCmd(W, { type: 'sun', x: 0.15, y: 0.2, I: 1 }); },
+  coldSide: (W, d) => { if (d === 0) { applyCmd(W, { type: 'sun', x: 0.2, y: 0.5, I: 0.9 }); let b = 0, bc = 0; for (let c = 0; c < W.n; c++) { const x = c % W.w; if (x > W.w * 0.55 && W.hgt[c] > b && !W.seaMask[c]) { b = W.hgt[c]; bc = c; } } applyCmd(W, { type: 'terrain', x: bc % W.w, y: (bc / W.w) | 0, r: 6, delta: 0.15 }); } },
   combo: (W, d) => { if (d === 0) { const b = bestWind(W); applyCmd(W, { type: 'wind', dir: b, on: true, str: 0.9 }); applyCmd(W, { type: 'sun', I: 1 }); } if (d % 2 === 0) doseGreen(W, 2, 150); },
 };
 

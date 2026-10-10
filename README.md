@@ -15,5 +15,6 @@ Browser-Spiel (PWA): Vite + TypeScript + Preact, Simulation im Web Worker, Gelä
 npm install
 npm run dev      # Entwicklung
 npm run build    # dist/
+./deploy.sh      # GitHub Pages (Branch gh-pages)
 npm test
 ```
