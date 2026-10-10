@@ -222,7 +222,7 @@ export class MapRenderer {
   draw(opts: { mode: number; tickMs: number; sea: number; sunX: number; sunY: number; sunI: number; hasGz: boolean }) {
     const gl = this.gl;
     const c = this.canvas;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     const W = Math.round(c.clientWidth * dpr), H = Math.round(c.clientHeight * dpr);
     if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
     gl.viewport(0, 0, W, H);

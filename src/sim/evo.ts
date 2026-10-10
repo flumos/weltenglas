@@ -22,7 +22,7 @@ function landNeighbor(W: World, c: number, needVeg = 0) {
 }
 
 /** Platz in der Stamm-Tabelle schaffen: kleine, gescheiterte Mutanten räumen; Durchbrüche haben Vorrang */
-function makeRoom(W: World, isJump: boolean) {
+export function makeRoom(W: World, isJump: boolean) {
   for (let s = 0; s < W.S; s++) if (!W.alive[s]) return;
   const vis = visThreshold(W);
   let v = -1, vb = Infinity;

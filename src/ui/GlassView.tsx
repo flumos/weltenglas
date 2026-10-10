@@ -91,6 +91,7 @@ function TopBar() {
       <span class="pill money"><Icon name="pig" size={18} />{fmtMoney(c.money)}</span>
       <button class="iconbtn" title="Foto" onClick={() => takePhoto(`Weltenglas · ${c.name}s Welt · Tag ${Math.floor(S.day.value)}`)}><Icon name="camera" /></button>
       <button class="iconbtn" title="Forschungsheft" onClick={() => { S.screen.value = 'notebook'; }}><Icon name="book" /></button>
+      <button class="iconbtn" title="Hilfe" onClick={() => S.modal.value = { kind: 'help' }}><Icon name="info" /></button>
       <button class="iconbtn" title="Einstellungen" onClick={() => S.modal.value = { kind: 'settings' }}><Icon name="gear" /></button>
     </div>
   );
@@ -351,6 +352,7 @@ function StatusChips() {
   if (meta.ctl.lid) chips.push({ text: 'Deckel offen', kind: '' });
   const h = S.hist.value; if (h.length > 4) { const a = h[h.length - 4].bio, b = h[h.length - 1].bio; if (b < a * 0.7 && a > 50) chips.push({ text: 'Leben nimmt ab', kind: 'bad' }); }
   if (m.minT < -1) chips.push({ text: 'Eis bildet sich', kind: '' });
+  if (m.maxT > 33) chips.push({ text: 'Zu heiß für viele Arten', kind: 'bad' });
   const last = S.toasts.value.filter(t => t.kind === 'species').slice(-1)[0];
   return (
     <div class="chips">
@@ -384,6 +386,21 @@ export function GlassView() {
   const T = TOOLS.find(x => x.id === tl);
   const lastPaint = useRef(0);
   const dragSun = useRef(false);
+
+  // Tastatur
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === 'INPUT' || S.locked.value) return;
+      if (e.key === 'Escape') { if (S.modal.value) S.modal.value = null; else { S.tool.value = 'look'; S.selectedSpecies.value = -1; S.cellInfo.value = null; } return; }
+      if (S.modal.value) return;
+      if (e.key === ' ') { e.preventDefault(); if (S.paused.value) setSpeedIndex(S.speed.value); else setSpeedIndex(-1); }
+      else if (e.key >= '1' && e.key <= '4') { const i = +e.key - 1; if (i <= maxSpeedIndex()) setSpeedIndex(i); }
+      else if (e.key === 's') selectTool('sun'); else if (e.key === 'w') selectTool('wind'); else if (e.key === 'n') selectTool('dose');
+      else if (e.key === 'u') selectTool('look'); else if (e.key === 'h') S.screen.value = 'notebook';
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
 
   // Tutorial: Lampe an → Zeit → Schulfest
   useEffect(() => {

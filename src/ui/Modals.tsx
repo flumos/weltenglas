@@ -126,6 +126,24 @@ function Shelf() {
   );
 }
 
+function Help() {
+  return (
+    <div class="modal">
+      <div class="row"><h2 class="grow">So funktioniert dein Glas</h2><button class="iconbtn" onClick={close}><Icon name="x" /></button></div>
+      <p class="muted" style="margin:8px 0 14px">Du steuerst nie ein Lebewesen – nur die Bedingungen. Drei Regeln tragen die Welt:</p>
+      <div class="col" style="gap:10px">
+        <div class="letter"><b>1 · Sauerstoff öffnet die Welt.</b> Plankton macht Sauerstoff. Ab 2 % geht Leben an Land, ab 8 % entsteht Holz und damit Wald.</div>
+        <div class="letter"><b>2 · Wasser wandert mit dem Wind.</b> Wo der Wind vom Meer kommt und an Bergen aufsteigt, regnet es. Dahinter liegen Steppe und Wüste.</div>
+        <div class="letter"><b>3 · Vielfalt braucht Unterschiede.</b> Warme und kalte Zonen, Gebirge, Inseln und Meeresarme schaffen Nischen. Eine gleichförmige Welt wird eintönig.</div>
+      </div>
+      <div class="label" style="margin:16px 0 6px">Bedienung</div>
+      <p class="small">Werkzeug unten antippen, dann auf die Welt tippen. Ohne Werkzeug untersuchst du eine Stelle. Oben stellst du das Tempo ein. Jeder Wettbewerb hat einen Stichtag – die Sterne zeigen, wie die Jury dein Glas jetzt bewerten würde.</p>
+      <p class="small muted" style="margin-top:8px">Tastatur: Leertaste Pause · 1–4 Tempo · S Sonne · W Wind · N Nährsalz · U Untersuchen · H Heft · Esc schließen</p>
+      <button class="btn primary" style="margin-top:16px" onClick={close}>Alles klar</button>
+    </div>
+  );
+}
+
 function Tutorial() {
   return (
     <div class="modal">
@@ -151,7 +169,7 @@ export function Modals() {
     return <div class="card card-learn"><div class="label">Lernkarte</div><h3 style="margin:4px 0 6px">{c.title}</h3><p class="small">{c.text}</p><button class="btn small primary" style="margin-top:12px" onClick={close}>Verstanden</button></div>;
   }
   const inner = m.kind === 'discovery' ? <Discovery id={m.data as number} /> : m.kind === 'obituary' ? <Obituary id={m.data as number} /> : m.kind === 'settings' ? <Settings />
-    : m.kind === 'contest' ? <ContestInfo /> : m.kind === 'oma' ? <Oma /> : m.kind === 'shelf' ? <Shelf /> : m.kind === 'tutorial-lamp' ? <Tutorial /> : null;
+    : m.kind === 'contest' ? <ContestInfo /> : m.kind === 'oma' ? <Oma /> : m.kind === 'shelf' ? <Shelf /> : m.kind === 'tutorial-lamp' ? <Tutorial /> : m.kind === 'help' ? <Help /> : null;
   const dismissable = !['tutorial-lamp', 'oma', 'discovery'].includes(m.kind);
   return <div class="scrim" onClick={() => dismissable && close()}><div onClick={e => e.stopPropagation()} style="width:100%;display:grid;place-items:center">{inner}</div></div>;
 }

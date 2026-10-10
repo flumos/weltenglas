@@ -70,7 +70,7 @@ export function MapCanvas({ onPointer, showSunHandle, showWind, brush = 0, small
       if (r) {
         r.setSnap(cur, sim.snapPrev);
         const mixing = tickMs > 0 && now - r.curAt < Math.min(4000, tickMs);
-        if (mixing || now - lastGl > 120) {
+        if ((mixing && now - lastGl > 32) || now - lastGl > 120) {
           const m = cur.meta;
           r.draw({ mode: MODES[S.overlay.value] ?? 0, tickMs, sea: m.sea, sunX: m.ctl.lampX, sunY: m.ctl.lampY, sunI: m.ctl.lamp, hasGz: !!cur.gz });
           lastGl = now;

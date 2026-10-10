@@ -6,7 +6,7 @@ import { settlementName } from './names.ts';
 import type { World, Settlement } from './types.ts';
 
 export const ERAS = ['Sammler', 'Ackerbau', 'Bronze', 'Schrift', 'Optik', 'Licht'];
-const ERA_K = [0, 5, 15, 35, 70, 150];
+const ERA_K = [0, 6, 20, 50, 110, 240];
 export const ERA_TEXT = [
   'sammeln Früchte und erzählen sich Geschichten über die warme Scheibe am Himmel.',
   'bestellen Felder. Ein Überschuss ernährt die ersten Handwerker.',
@@ -88,7 +88,7 @@ export function cultureDaily(W: World) {
     const f = clamp(1 - 1 / Math.max(1, surplus), 0, 0.9);
     // Wissen (Kremer + Henrich)
     const Pstar = 30 + 25 * st.era;
-    const g = 0.05;
+    const g = 0.03;
     let dK = g * dpow(Math.max(1, st.pop * (0.1 + f)), 0.5) * dpow(Math.max(1, st.K), 0.25);
     if (st.pop < Pstar) dK -= 0.02 * st.K;
     st.K = Math.max(1, st.K + dK * dt);

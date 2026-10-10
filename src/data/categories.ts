@@ -37,7 +37,7 @@ export const CATEGORIES: Record<string, Category> = {
   },
   landscapes: {
     id: 'landscapes', name: 'Vielfalt der Landschaften', short: 'Landschaften', desc: 'Anzahl Biome mit mindestens 3 % Fläche, dazu wie gleichmäßig sie verteilt sind.',
-    x: ({ m }) => m.biomeKinds + 0.6 * m.biomeHill, x0: 7.9, xref: 11.2, gamma: 1, fmt: x => `${x.toFixed(1)} Landschaftspunkte`,
+    x: ({ m }) => m.biomeKinds + 0.6 * m.biomeHill, x0: 6, xref: 11.2, gamma: 1.5, fmt: x => `${x.toFixed(1)} Landschaftspunkte`,
     tip: 'Gebirge machen Regen auf der einen und Steppe auf der anderen Seite. Wind vom Meer auf die Berge lenken!',
   },
   rainforest: {

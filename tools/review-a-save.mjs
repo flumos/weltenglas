@@ -1,0 +1,43 @@
+import { chromium } from 'playwright';
+import { readFileSync } from 'fs';
+const url = 'http://localhost:4175/?dev=1';
+const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
+const p = await ctx.newPage();
+const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+p.on('dialog', d => d.accept());
+const ev = (f, a) => p.evaluate(f, a);
+const dismiss = async () => { for (let k = 0; k < 4; k++) for (const t of ['Verstanden', 'So soll sie heißen']) { const x = p.getByText(t, { exact: true }); if (await x.count()) await x.first().click().catch(() => {}); } };
+await p.goto(url); await p.waitForTimeout(800);
+await p.getByText('Neues Spiel').click(); await p.getByText("Los geht's").click();
+for (let i = 0; i < 3; i++) await p.getByText('Weiter').first().click();
+await p.getByRole('button', { name: /Tütchen 1/ }).click(); await p.waitForTimeout(1200);
+await p.getByRole('button', { name: /Tütchen 2/ }).click(); await p.waitForTimeout(400);
+await p.getByText('Ab auf den Schreibtisch').click(); await p.waitForTimeout(400);
+await p.getByText('Lampe an').click(); await p.waitForTimeout(600); await dismiss();
+await ev(async () => { await window.__wg.sim.advance(2); }); await p.waitForTimeout(800); await dismiss();
+// Felsenfest-Wettbewerb direkt starten (Stress-Vorschau)
+await ev(() => { const { S, career } = window.__wg; career.setSpeedIndex(-1); S.patchCareer(c => { c.money = 500; c.current = null; }); career.startContest('felsen'); });
+await p.waitForTimeout(3000);
+const before = await ev(() => { const { S } = window.__wg; return { day: S.day.value, money: S.career.value.money, cur: S.career.value.current?.id, stress: S.stress.value?.score ?? null, species: S.speciesList.value.length }; });
+await ev(async () => { await window.__wg.save.saveGame(); });
+await p.reload(); await p.waitForTimeout(1000);
+await p.getByText('Weiterspielen').click(); await p.waitForTimeout(2500);
+await ev(async () => { const { career } = window.__wg; career.setSpeedIndex(2); }); await p.waitForTimeout(6000);
+const after = await ev(() => { const { S } = window.__wg; return { day: S.day.value, money: S.career.value.money, cur: S.career.value.current?.id, stress: S.stress.value?.score ?? null, species: S.speciesList.value.length, chron: S.chronicle.value.length, chronUniq: new Set(S.chronicle.value.map(e => e.tick + e.text)).size }; });
+console.log('vor Reload', JSON.stringify(before)); console.log('nach Reload', JSON.stringify(after));
+// Export/Import
+await ev(() => window.__wg.career.setSpeedIndex(-1));
+const [dl] = await Promise.all([p.waitForEvent('download'), ev(() => window.__wg.save.exportFile())]);
+const path = await dl.path(); const sz = readFileSync(path).length;
+await p.goto('http://localhost:4175/?dev=1'); await p.waitForTimeout(800);
+await p.locator('input[type=file]').setInputFiles(path); await p.waitForTimeout(3000);
+const imp = await ev(() => { const { S } = window.__wg; return { scr: S.screen.value, day: S.day.value, cur: S.career.value?.current?.id, species: S.speciesList.value.length, B: 0 }; });
+console.log('Export bytes', sz, 'Import', JSON.stringify(imp));
+// Neues Spiel über Einstellungen
+await ev(() => { window.__wg.S.modal.value = { kind: 'settings' }; }); await p.waitForTimeout(300);
+await p.getByRole('button', { name: 'Neues Spiel' }).click(); await p.waitForTimeout(2500);
+const hasSave = await p.getByText('Weiterspielen').count();
+console.log('Nach „Neues Spiel“ (Einstellungen) noch Weiterspielen sichtbar:', hasSave);
+console.log('Fehler', errs.join(' | ') || 'keine');
+await b.close();

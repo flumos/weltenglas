@@ -1,0 +1,25 @@
+import { createWorld, seedLife } from '../src/sim/world.ts';
+import { runDays, applyCmd, stressTest } from '../src/sim/sim.ts';
+import { metrics } from '../src/sim/metrics.ts';
+import { transplant } from '../src/sim/transplant.ts';
+const W0 = createWorld({ seed: 4 }); seedLife(W0); W0.ctl.lamp = 0.8;
+runDays(W0, 120);
+const m0 = metrics(W0); const ch0 = W0.chronicle.length;
+const W = transplant(W0, 'M', 999);
+runDays(W, 10);
+const m1 = metrics(W);
+const ext = W.chronicle.slice(ch0).filter(e => e.kind === 'extinct');
+console.log('vorher', m0.species, m0.total.toFixed(0), 'nachher', m1.species, m1.total.toFixed(0), 'Aussterbe-Meldungen', ext.length, ext.slice(0,5).map(e=>e.text));
+let nan = false; for (const k of ['B','N','T','O','hgt'] as const) for (const v of (W as any)[k]) if (!Number.isFinite(v)) nan = true;
+console.log('NaN', nan, 'o2', W.o2.toFixed(2));
+// Grenzfälle
+applyCmd(W, { type: 'water', delta: 5 }); applyCmd(W, { type: 'water', delta: -5 }); applyCmd(W, { type: 'terrain', x: -10, y: 300, r: 30, delta: 1 });
+applyCmd(W, { type: 'inoculate', traits: { ...W.startTraits, land: 1 }, x: 0, y: 0 });
+for (let i = 0; i < 10; i++) applyCmd(W, { type: 'hotspot', x: 5, y: 5 });
+applyCmd(W, { type: 'rename', species: 99999, name: 'x' });
+runDays(W, 5);
+nan = false; for (const k of ['B','N','T','O','hgt','M','Rain'] as const) for (const v of (W as any)[k]) if (!Number.isFinite(v)) nan = true;
+console.log('nach Grenzfällen NaN', nan, 'hotspots', W.hotspots.length);
+const t0 = performance.now(); stressTest(W); console.log('stressTest ms (M)', (performance.now() - t0).toFixed(0));
+const X = transplant(W, 'XL', 5); runDays(X, 2); const t1 = performance.now(); stressTest(X); console.log('stressTest ms (XL)', (performance.now() - t1).toFixed(0));
+const t2 = performance.now(); runDays(X, 1); console.log('1 Tag XL ms', (performance.now() - t2).toFixed(0));

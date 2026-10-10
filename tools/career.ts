@@ -6,6 +6,7 @@ import { climateDaily } from '../src/sim/climate.ts';
 import { metrics, estSpeciesList, inspectSpecies } from '../src/sim/metrics.ts';
 import { CATEGORIES } from '../src/data/categories.ts';
 import { P } from '../src/sim/params.ts';
+import { makeRoom } from '../src/sim/evo.ts';
 import type { World } from '../src/sim/types.ts';
 
 const seed = +process.argv[2], prof = process.argv[3] ?? 'std';
@@ -35,14 +36,17 @@ for (let d = 0; d <= 551; d++) {
       Object.assign(t, { k: 6, brain: 0.8, social: 0.6, mob: Math.max(0.62, t.mob), role: 1, land: 1 });
       let x = W.w / 2, y = W.h / 2;
       if (base) { const i = inspectSpecies(W, base.id); if (i && i.cx >= 0) { x = i.cx; y = i.cy; } }
+      if (!process.env.NOROOM) makeRoom(W, true);
+      const before = W.species.length;
       applyCmd(W, { type: 'inoculate', traits: t, x, y, name: 'Denker', amount: 2.0 });
+      out.culture.labOk = W.species.length > before;
       lab = d; out.culture.lab = d;
     }
   }
   if (prof === 'good') {
     if (d === 30) W.ctl.lamp = 0.8;
     if (d === 90) W.ctl.lamp = 1.0;
-    if (d % 3 === 0) doseGreen(W, 2);
+    if (d % 3 === 0 && d < 160) { let nn = 0, k = 0; for (let c = 0; c < W.n; c++) if (W.seaMask[c]) { nn += W.N[c]; k++; } if (nn / k < 1.0) doseGreen(W, 2); }
     if (d % 20 === 5 && d > 30) applyCmd(W, { type: 'wind', dir: bestWind(W), on: true, str: 0.9 });
     if (d === 115) applyCmd(W, { type: 'thermo', on: true, set: 16, max: 10 });
   }

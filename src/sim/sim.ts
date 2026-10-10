@@ -3,7 +3,7 @@ import { P, NC, BIOMES, B_FOREST, B_RAIN, B_TAIGA } from './params.ts';
 import { clamp, gaussBump, rngNext } from './math.ts';
 import { climateDaily, thermal, WIND_NAMES } from './climate.ts';
 import { biology, nutrients, movement } from './bio.ts';
-import { mutation, bookkeeping, merge, strainOfSpecies } from './evo.ts';
+import { mutation, bookkeeping, merge, strainOfSpecies, makeRoom } from './evo.ts';
 import { classifyBiomes, dayStat } from './metrics.ts';
 import { cultureDaily, registerWonder } from './culture.ts';
 import { addStrain, chron, cloneWorld, nameSpecies, seedLife, totalBiomass, traitsOf, updateSeaMask, visThreshold } from './world.ts';
@@ -132,6 +132,7 @@ export function applyCmd(W: World, cmd: Cmd) {
     }
     case 'inoculate': {
       const t = { ...cmd.traits };
+      makeRoom(W, true);
       const s = addStrain(W, t, -1, 'eingesetzt');
       if (s < 0) break;
       const want = t.land ? 0 : 1;
@@ -157,7 +158,7 @@ export function applyCmd(W: World, cmd: Cmd) {
     case 'meteor': meteor(W, cmd.x, cmd.y); break;
     case 'event': householdEvent(W, cmd.id, cmd.x, cmd.y); break;
     case 'ctl': Object.assign(ctl, cmd.patch); if (cmd.patch.drift) for (const h of W.hotspots) if (!h.vx && !h.vy) { h.vx = (rngNext(W.rng) - 0.5) * 0.06; h.vy = (rngNext(W.rng) - 0.5) * 0.06; } break;
-    case 'seedLife': seedLife(W); chron(W, { kind: 'player', text: 'Tütchen 2: Lebenskeime im Urmeer.' }); break;
+    case 'seedLife': makeRoom(W, true); seedLife(W); chron(W, { kind: 'player', text: 'Tütchen 2: Lebenskeime im Urmeer.' }); break;
     case 'tuempel': {
       // drei wilde Arten aus einem echten Tümpel
       const base = W.startTraits;
